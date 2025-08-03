@@ -1,0 +1,24 @@
+{
+  "enabled": true,
+  "name": "Architecture Docs Optimizer",
+  "description": "Automatically reviews and optimizes architecture documentation when system design files, core components, or documentation structure changes. Ensures docs stay current with implementation and identifies optimization opportunities.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "docs/01-overview/architecture.md",
+      "docs/01-overview/architectural-roadmap.md",
+      "docs/02-system-design/*.md",
+      "src/jarvis/core/*.py",
+      "src/jarvis/services/*.py",
+      "src/jarvis/mcp/*.py",
+      "docs/README.md",
+      "PLAN.md",
+      "PLAN-ENHANCED.md"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Review and optimize the architecture documentation based on recent changes. Focus on:\n\n1. **Architecture Alignment**: Ensure docs match current implementation in core/, services/, and mcp/ directories\n2. **Documentation Structure**: Optimize organization and flow of architecture docs\n3. **Completeness Gaps**: Identify missing documentation for new components or patterns\n4. **Clarity Improvements**: Enhance explanations, add diagrams, improve examples\n5. **Cross-References**: Update links and references between related docs\n6. **Implementation Details**: Sync high-level architecture with actual code patterns\n\nProvide specific recommendations for documentation improvements, focusing on making the architecture more understandable and actionable for developers and users."
+  }
+}

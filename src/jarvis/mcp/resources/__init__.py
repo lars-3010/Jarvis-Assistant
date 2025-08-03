@@ -1,0 +1,1 @@
+"""MCP resources for vault content access."""

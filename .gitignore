@@ -1,0 +1,51 @@
+.env
+node_modules/
+__pycache__/
+*.pyc
+.obsidian/
+.vscode/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.claude/settings.local.json
+
+# Coverage files
+.coverage
+coverage.xml
+htmlcov/
+resources/tests/.coverage
+resources/tests/coverage.xml
+resources/tests/htmlcov/
+
+# Data directories (local storage/development only)
+resources/data/
+resources/data-generation/
+
+# Generated dataset files
+*_dataset.csv
+*_dataset.json
+datasets/
+*.dataset
+dataset_cache/
+
+.kiro/specs/dataset-generation-tool/
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Database and index files
+*.db
+*.sqlite
+*.sqlite3
+embeddings/
+indexes/
+index.faiss
+*.index
+
+# Temporary and cache files
+*.tmp
+*.temp
+*.cache
+.mypy_cache/

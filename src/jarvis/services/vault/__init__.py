@@ -1,0 +1,1 @@
+"""Vault operations for Obsidian file management."""

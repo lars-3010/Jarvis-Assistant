@@ -1,0 +1,205 @@
+[project]
+name = "jarvis-assistant"
+version = "0.2.0"
+description = "AI-augmented learning system with semantic and graph search"
+authors = [
+    {name = "Lars Boes"},
+]
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+keywords = ["ai", "obsidian", "knowledge-management", "semantic-search", "graph-database"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Markup",
+]
+
+dependencies = [
+    # Core Framework & CLI
+    "click>=8.1.7",
+    "pydantic>=2.0,<3.0",
+    "pydantic-settings>=2.0.0,<3.0.0",
+    "python-dotenv>=1.0.0,<2.0.0",
+    # Database Systems
+    "duckdb>=1.1.3", # Vector database
+    "neo4j-driver>=5.18.0,<6.0.0", # Graph database
+    # AI & ML
+    "mcp>=1.6.0,<1.7.0", # Model Context Protocol
+    "sentence-transformers>=4.0.0,<5.0.0", # Text embeddings
+    "torch>=2.0.0,<3.0.0", # PyTorch backend
+    "numpy>=1.24.0,<2.0.0", # Array operations
+    # File System & Monitoring
+    "watchdog>=6.0.0", # File system monitoring
+    "python-json-logger>=2.0.7", # Structured logging
+    # Text Processing
+    "PyYAML>=6.0", # YAML parsing
+    # HTTP & Networking (optional for future)
+    "httpx>=0.27.0,<0.28.0", # HTTP client
+    "aiohttp>=3.8.0,<4.0.0", # Async HTTP client for LLM services
+    # Phase 1: LLM Dependencies
+    "jinja2>=3.1.0,<4.0.0", # Template engine for prompts
+    "jsonschema>=4.0.0,<5.0.0", # JSON schema validation
+    "pandas>=2.3.1",
+    "scipy>=1.16.0",
+    "networkx>=3.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Testing
+    "pytest>=7.0,<9.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "trio",
+    # Code Quality
+    "ruff>=0.8.1", # Linting and formatting
+    "mypy>=1.0,<2.0", # Type checking
+    "pre-commit>=3.0.0", # Git hooks
+    # Documentation
+    "mkdocs>=1.5.0", # Documentation
+    "mkdocs-material>=9.0.0", # Material theme
+]
+
+future = [
+    # Future Phase Dependencies (FastAPI backend, LLM integration)
+    "fastapi>=0.115.0,<0.116.0",           # Web framework
+    "uvicorn[standard]>=0.29.0,<0.30.0",   # ASGI server
+    "google-generativeai>=0.8.4,<0.9.0",   # LLM API
+]
+
+graph = [
+    # Additional graph processing dependencies
+    "networkx>=3.0",                       # Graph algorithms
+    "igraph>=0.10.0",                      # High-performance graph library
+]
+
+all = [
+    "jarvis-assistant[dev,future,graph]"
+]
+
+[project.scripts]
+jarvis = "jarvis.main:main"
+jarvis-mcp = "jarvis.mcp.server:main"
+jarvis-mcp-stdio = "jarvis.mcp.mcp_main:main_sync"
+
+[project.urls]
+Homepage = "https://github.com/yourusername/jarvis-assistant"
+Documentation = "https://jarvis-assistant.readthedocs.io"
+Repository = "https://github.com/yourusername/jarvis-assistant"
+Issues = "https://github.com/yourusername/jarvis-assistant/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/jarvis"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+# Ruff configuration
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "resources/tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "PL",     # pylint
+    "RUF",    # ruff-specific rules
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in argument defaults
+    "PLR0913", # too many arguments
+    "PLR0915", # too many statements
+]
+
+[tool.ruff.lint.per-file-ignores]
+"resources/tests/**/*.py" = ["PLR2004", "S101", "S106"]  # Allow magic values and asserts in tests
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+# MyPy configuration
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+
+[[tool.mypy.overrides]]
+module = [
+    "duckdb.*",
+    "watchdog.*",
+    "sentence_transformers.*", 
+    "torch.*",
+    "neo4j.*",
+    "mcp.*"
+]
+ignore_missing_imports = true
+
+# Pytest configuration
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = [
+    "--strict-markers",
+    "--strict-config", 
+    "--cov=jarvis",
+    "--cov-report=term-missing",
+    "--cov-report=html:resources/tests/htmlcov",
+    "--cov-report=xml:resources/tests/coverage.xml",
+]
+testpaths = ["resources/tests"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "mcp: marks tests as mcp tests",
+    "asyncio: marks tests as asyncio tests",
+]
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["src/jarvis"]
+data_file = "resources/tests/.coverage"
+omit = [
+    "resources/tests/*",
+    "src/jarvis/__init__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
