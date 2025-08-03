@@ -29,12 +29,8 @@ from ..models.data_models import (
     ValidationResult,
 )
 from ..models.exceptions import FeatureEngineeringError, InsufficientDataError
-
-try:
-    import psutil
-    PSUTIL_AVAILABLE = True
-except ImportError:
-    PSUTIL_AVAILABLE = False
+from ..utils.memory_monitor import MemoryMonitor, AdaptiveBatchSizer, PerformanceTracker
+from ..utils.parallel_processor import ParallelFeatureExtractor, ParallelBatchProcessor
 
 logger = setup_logging(__name__)
 
@@ -86,7 +82,9 @@ class NotesDatasetGenerator:
 
         # Initialize processing stats with memory monitoring
         self._processing_stats = ProcessingStats(start_time=datetime.now())
-        memory_monitor = self._create_memory_monitor()
+        memory_monitor = MemoryMonitor(threshold_mb=1000, warning_threshold_mb=800)
+        batch_sizer = AdaptiveBatchSizer(initial_batch_size=batch_size, min_batch_size=1, max_batch_size=128)
+        performance_tracker = PerformanceTracker()
 
         try:
             # Load and process notes in adaptive batches
@@ -101,9 +99,12 @@ class NotesDatasetGenerator:
             # Process notes in adaptive batches
             i = 0
             while i < len(notes):
-                # Adjust batch size based on memory usage
-                current_batch_size = self._adjust_batch_size(
-                    current_batch_size, memory_monitor, processed_count
+                # Adjust batch size based on memory usage and performance
+                batch_start_time = time.time()
+                current_batch_size = batch_sizer.adjust_batch_size(
+                    memory_monitor, 
+                    batch_start_time - (batch_start_time if i == 0 else batch_start_time), 
+                    len(batch) if i > 0 else batch_size
                 )
                 
                 batch = notes[i:i + current_batch_size]
@@ -117,6 +118,13 @@ class NotesDatasetGenerator:
                 # Process batch with memory monitoring
                 batch_features = self._process_note_batch_optimized(
                     batch, link_graph, centrality_cache, memory_monitor
+                )
+                
+                # Record batch performance
+                batch_time = time.time() - batch_start_time
+                performance_tracker.record_batch(
+                    len(batch), batch_time, memory_monitor.get_current_usage(), 
+                    sum(1 for f in batch_features if f is None)
                 )
 
                 # Update counters
@@ -161,6 +169,9 @@ class NotesDatasetGenerator:
             # Convert to DataFrame with memory optimization
             dataset = self._create_dataframe_optimized(note_features_list, memory_monitor)
 
+            # Log final performance summary
+            performance_tracker.log_performance_summary()
+
             logger.info(f"Notes dataset created: {len(dataset)} rows, {len(dataset.columns)} columns")
             return dataset
 
@@ -169,6 +180,123 @@ class NotesDatasetGenerator:
             if isinstance(e, (InsufficientDataError, FeatureEngineeringError)):
                 raise
             raise FeatureEngineeringError(f"Failed to generate notes dataset: {e}") from e
+
+    def generate_dataset_parallel(self, notes: list[str], link_graph: nx.DiGraph,
+                                 batch_size: int = 32, max_workers: int = None,
+                                 progress_callback=None) -> pd.DataFrame:
+        """Generate notes dataset using parallel processing for feature extraction.
+        
+        Args:
+            notes: List of note file paths
+            link_graph: NetworkX graph of note relationships
+            batch_size: Batch size for processing
+            max_workers: Maximum number of parallel workers (None for auto)
+            progress_callback: Optional callback for progress updates
+            
+        Returns:
+            DataFrame containing note features
+            
+        Raises:
+            InsufficientDataError: If not enough notes for meaningful dataset
+            FeatureEngineeringError: If feature extraction fails
+        """
+        logger.info(f"Starting parallel notes dataset generation for {len(notes)} notes")
+
+        if len(notes) < 5:
+            raise InsufficientDataError(
+                f"Insufficient notes for dataset generation: {len(notes)} < 5",
+                required_minimum=5,
+                actual_count=len(notes)
+            )
+
+        # Initialize processing stats and monitoring
+        self._processing_stats = ProcessingStats(start_time=datetime.now())
+        memory_monitor = MemoryMonitor(threshold_mb=1500, warning_threshold_mb=1200)
+        performance_tracker = PerformanceTracker()
+
+        try:
+            # Pre-compute centrality metrics for all nodes
+            centrality_cache = self._precompute_centrality_metrics(link_graph)
+
+            # Initialize parallel processing components
+            parallel_extractor = ParallelFeatureExtractor(max_workers)
+            batch_processor = ParallelBatchProcessor(max_workers, batch_size)
+
+            # Create feature extraction function for parallel processing
+            def extract_note_features_wrapper(note_path: str) -> NoteFeatures | None:
+                try:
+                    # Load note data
+                    note_data = self._load_note_data(note_path)
+                    
+                    # Generate embedding (individual for now, could be batched)
+                    try:
+                        embedding = self.vector_encoder.encode_documents([note_data.content])
+                        note_data.embedding = embedding[0] if embedding else None
+                    except Exception as e:
+                        logger.warning(f"Failed to generate embedding for {note_path}: {e}")
+                        note_data.embedding = None
+                    
+                    # Extract features
+                    features = self._extract_note_features(note_data, link_graph, centrality_cache)
+                    return features
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to extract features for {note_path}: {e}")
+                    return None
+
+            # Process notes in parallel batches
+            logger.info("Processing notes in parallel batches")
+            
+            def process_note_batch_parallel(batch_notes: list[str]) -> list[NoteFeatures | None]:
+                """Process a batch of notes in parallel."""
+                # Check memory before processing batch
+                if memory_monitor.should_cleanup():
+                    logger.debug("Performing memory cleanup before parallel batch")
+                    memory_monitor.force_cleanup()
+                
+                # Use parallel feature extractor for the batch
+                batch_results = parallel_extractor.extract_features_parallel(
+                    batch_notes, extract_note_features_wrapper
+                )
+                
+                return batch_results
+
+            # Process all notes using parallel batch processor
+            all_features = batch_processor.process_batches(
+                notes, process_note_batch_parallel, progress_callback
+            )
+
+            # Filter out None results and count statistics
+            note_features_list = [f for f in all_features if f is not None]
+            processed_count = len(note_features_list)
+            failed_count = len(all_features) - processed_count
+
+            # Update processing stats
+            self._processing_stats.end_time = datetime.now()
+            self._processing_stats.items_processed = processed_count
+            self._processing_stats.items_failed = failed_count
+            self._processing_stats.memory_usage_mb = memory_monitor.get_current_usage()
+
+            logger.info(f"Parallel notes processing complete: {processed_count} successful, {failed_count} failed")
+            logger.info(f"Peak memory usage: {memory_monitor.get_peak_usage():.1f}MB")
+
+            if not note_features_list:
+                raise FeatureEngineeringError("No note features could be extracted")
+
+            # Convert to DataFrame with memory optimization
+            dataset = self._create_dataframe_optimized(note_features_list, memory_monitor)
+
+            # Log final performance summary
+            performance_tracker.log_performance_summary()
+
+            logger.info(f"Parallel notes dataset created: {len(dataset)} rows, {len(dataset.columns)} columns")
+            return dataset
+
+        except Exception as e:
+            logger.error(f"Parallel notes dataset generation failed: {e}")
+            if isinstance(e, (InsufficientDataError, FeatureEngineeringError)):
+                raise
+            raise FeatureEngineeringError(f"Failed to generate parallel notes dataset: {e}") from e
 
     def _process_note_batch(self, batch_notes: list[str], link_graph: nx.DiGraph,
                           centrality_cache: dict[str, CentralityMetrics]) -> list[NoteFeatures | None]:
@@ -229,6 +357,208 @@ class NotesDatasetGenerator:
                 batch_features.append(None)
 
         return batch_features
+
+    def _process_note_batch_optimized(self, batch_notes: list[str], link_graph: nx.DiGraph,
+                                    centrality_cache: dict[str, CentralityMetrics], 
+                                    memory_monitor: MemoryMonitor) -> list[NoteFeatures | None]:
+        """Process a batch of notes with memory optimization.
+        
+        Args:
+            batch_notes: List of note paths in this batch
+            link_graph: NetworkX graph for centrality calculations
+            centrality_cache: Pre-computed centrality metrics
+            memory_monitor: Memory monitor for optimization
+            
+        Returns:
+            List of NoteFeatures objects (None for failed notes)
+        """
+        batch_features = []
+
+        # Load note data for batch with memory monitoring
+        note_data_batch = []
+        for note_path in batch_notes:
+            try:
+                # Check memory before loading each note
+                if memory_monitor.should_cleanup():
+                    logger.debug("Performing memory cleanup during note loading")
+                    memory_monitor.force_cleanup()
+                
+                note_data = self._load_note_data(note_path)
+                note_data_batch.append(note_data)
+            except Exception as e:
+                logger.warning(f"Failed to load note data for {note_path}: {e}")
+                note_data_batch.append(None)
+
+        # Generate embeddings for valid notes in batch (more efficient than individual)
+        valid_notes = [data for data in note_data_batch if data is not None]
+        if valid_notes:
+            try:
+                contents = [data.content for data in valid_notes]
+                
+                # Check memory before embedding generation
+                if memory_monitor.should_cleanup():
+                    logger.debug("Performing memory cleanup before embedding generation")
+                    memory_monitor.force_cleanup()
+                
+                embeddings = self.vector_encoder.encode_documents(contents)
+
+                # Assign embeddings back to note data
+                embedding_idx = 0
+                for i, data in enumerate(note_data_batch):
+                    if data is not None:
+                        data.embedding = embeddings[embedding_idx]
+                        embedding_idx += 1
+
+            except Exception as e:
+                logger.error(f"Failed to generate embeddings for batch: {e}")
+                # Set embeddings to None for error handling
+                for data in note_data_batch:
+                    if data is not None:
+                        data.embedding = None
+
+        # Extract features for each note with memory monitoring
+        for note_data in note_data_batch:
+            if note_data is None:
+                batch_features.append(None)
+                continue
+
+            try:
+                # Check memory before feature extraction
+                if memory_monitor.should_cleanup():
+                    logger.debug("Performing memory cleanup during feature extraction")
+                    memory_monitor.force_cleanup()
+                
+                features = self._extract_note_features(note_data, link_graph, centrality_cache)
+                batch_features.append(features)
+            except Exception as e:
+                logger.warning(f"Failed to extract features for {note_data.path}: {e}")
+                batch_features.append(None)
+
+        return batch_features
+
+    def _create_dataframe_optimized(self, note_features_list: list[NoteFeatures], 
+                                  memory_monitor: MemoryMonitor) -> pd.DataFrame:
+        """Create DataFrame with memory optimization.
+        
+        Args:
+            note_features_list: List of NoteFeatures objects
+            memory_monitor: Memory monitor for optimization
+            
+        Returns:
+            Optimized DataFrame
+        """
+        logger.info(f"Creating DataFrame from {len(note_features_list)} note features")
+        
+        # Check memory before DataFrame creation
+        if memory_monitor.should_cleanup():
+            logger.debug("Performing memory cleanup before DataFrame creation")
+            memory_monitor.force_cleanup()
+        
+        try:
+            # Convert features to dictionaries for DataFrame creation
+            features_dicts = []
+            for features in note_features_list:
+                try:
+                    feature_dict = {
+                        'note_path': features.note_path,
+                        'note_title': features.note_title,
+                        'word_count': features.word_count,
+                        'tag_count': features.tag_count,
+                        'quality_stage': features.quality_stage,
+                        'creation_date': features.creation_date,
+                        'last_modified': features.last_modified,
+                        'outgoing_links_count': features.outgoing_links_count,
+                        'incoming_links_count': features.incoming_links_count,
+                        'betweenness_centrality': features.betweenness_centrality,
+                        'closeness_centrality': features.closeness_centrality,
+                        'pagerank_score': features.pagerank_score,
+                        'clustering_coefficient': features.clustering_coefficient,
+                        'semantic_cluster_id': features.semantic_cluster_id,
+                        'semantic_summary': features.semantic_summary,
+                        'file_size': features.file_size,
+                        'aliases_count': features.aliases_count,
+                        'domains_count': features.domains_count,
+                        'concepts_count': features.concepts_count,
+                        'sources_count': features.sources_count,
+                        'has_summary_field': features.has_summary_field,
+                        'progress_state': features.progress_state,
+                        'semantic_up_links': features.semantic_up_links,
+                        'semantic_similar_links': features.semantic_similar_links,
+                        'semantic_leads_to_links': features.semantic_leads_to_links,
+                        'semantic_extends_links': features.semantic_extends_links,
+                        'semantic_implements_links': features.semantic_implements_links,
+                        'heading_count': features.heading_count,
+                        'max_heading_depth': features.max_heading_depth,
+                        'technical_term_density': features.technical_term_density,
+                        'concept_density_score': features.concept_density_score
+                    }
+                    features_dicts.append(feature_dict)
+                except Exception as e:
+                    logger.warning(f"Failed to convert features to dict: {e}")
+                    continue
+            
+            # Create DataFrame with memory-efficient dtypes
+            df = pd.DataFrame(features_dicts)
+            
+            # Optimize data types to reduce memory usage
+            df = self._optimize_dataframe_dtypes(df)
+            
+            logger.info(f"DataFrame created with {len(df)} rows and {len(df.columns)} columns")
+            memory_monitor.log_memory_status("after DataFrame creation")
+            
+            return df
+            
+        except Exception as e:
+            logger.error(f"Failed to create optimized DataFrame: {e}")
+            raise FeatureEngineeringError(f"DataFrame creation failed: {e}") from e
+
+    def _optimize_dataframe_dtypes(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Optimize DataFrame data types to reduce memory usage.
+        
+        Args:
+            df: Input DataFrame
+            
+        Returns:
+            DataFrame with optimized dtypes
+        """
+        try:
+            # Optimize integer columns
+            int_columns = ['word_count', 'tag_count', 'outgoing_links_count', 'incoming_links_count',
+                          'semantic_cluster_id', 'file_size', 'aliases_count', 'domains_count',
+                          'concepts_count', 'sources_count', 'semantic_up_links', 'semantic_similar_links',
+                          'semantic_leads_to_links', 'semantic_extends_links', 'semantic_implements_links',
+                          'heading_count', 'max_heading_depth']
+            
+            for col in int_columns:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], downcast='integer', errors='ignore')
+            
+            # Optimize float columns
+            float_columns = ['betweenness_centrality', 'closeness_centrality', 'pagerank_score',
+                           'clustering_coefficient', 'technical_term_density', 'concept_density_score']
+            
+            for col in float_columns:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], downcast='float', errors='ignore')
+            
+            # Optimize categorical columns
+            categorical_columns = ['quality_stage', 'progress_state']
+            for col in categorical_columns:
+                if col in df.columns:
+                    df[col] = df[col].astype('category')
+            
+            # Optimize boolean columns
+            boolean_columns = ['has_summary_field']
+            for col in boolean_columns:
+                if col in df.columns:
+                    df[col] = df[col].astype('bool')
+            
+            logger.debug("DataFrame dtypes optimized for memory efficiency")
+            return df
+            
+        except Exception as e:
+            logger.warning(f"Failed to optimize DataFrame dtypes: {e}")
+            return df
 
     def _load_note_data(self, note_path: str) -> NoteData:
         """Load complete note data from file.
@@ -1267,7 +1597,7 @@ class NotesDatasetGenerator:
                     note_data_batch.append(note_data)
                     
                     # Check memory after loading each note
-                    if memory_monitor.should_pause():
+                    if memory_monitor.should_cleanup():
                         logger.debug("Pausing for memory management during note loading")
                         gc.collect()
                         time.sleep(0.1)
@@ -1292,7 +1622,7 @@ class NotesDatasetGenerator:
                         all_embeddings.extend(chunk_embeddings)
                         
                         # Memory cleanup after each chunk
-                        if memory_monitor.should_pause():
+                        if memory_monitor.should_cleanup():
                             gc.collect()
 
                     # Assign embeddings back to note data
@@ -1320,7 +1650,7 @@ class NotesDatasetGenerator:
                     batch_features.append(features)
                     
                     # Periodic memory check during feature extraction
-                    if len(batch_features) % 8 == 0 and memory_monitor.should_pause():
+                    if len(batch_features) % 8 == 0 and memory_monitor.should_cleanup():
                         gc.collect()
                         
                 except Exception as e:
@@ -1398,7 +1728,7 @@ class NotesDatasetGenerator:
                 all_data.extend(chunk_data)
                 
                 # Memory cleanup after each chunk
-                if memory_monitor.should_pause():
+                if memory_monitor.should_cleanup():
                     gc.collect()
                     
             # Create DataFrame with memory-efficient dtypes
@@ -1520,83 +1850,3 @@ class NotesDatasetGenerator:
         
         return pd.DataFrame(data)
 
-
-class MemoryMonitor:
-    """Monitor memory usage and provide memory management utilities."""
-    
-    def __init__(self, threshold_mb: int = 1000):
-        """Initialize memory monitor.
-        
-        Args:
-            threshold_mb: Memory threshold in MB for triggering pauses
-        """
-        self.threshold_bytes = threshold_mb * 1024 * 1024
-        self.peak_usage = 0
-        
-        if PSUTIL_AVAILABLE:
-            self.process = psutil.Process()
-        else:
-            self.process = None
-    
-    def get_current_usage(self) -> float:
-        """Get current memory usage in MB.
-        
-        Returns:
-            Current memory usage in MB
-        """
-        if self.process:
-            try:
-                usage_bytes = self.process.memory_info().rss
-                usage_mb = usage_bytes / (1024 * 1024)
-                self.peak_usage = max(self.peak_usage, usage_mb)
-                return usage_mb
-            except Exception:
-                return 0.0
-        return 0.0
-    
-    def get_peak_usage(self) -> float:
-        """Get peak memory usage in MB.
-        
-        Returns:
-            Peak memory usage in MB
-        """
-        return self.peak_usage
-    
-    def should_pause(self) -> bool:
-        """Check if processing should pause for memory management.
-        
-        Returns:
-            True if memory usage is above threshold
-        """
-        if self.process:
-            try:
-                current_bytes = self.process.memory_info().rss
-                return current_bytes > self.threshold_bytes
-            except Exception:
-                return False
-        return False
-    
-    def get_memory_info(self) -> dict[str, float]:
-        """Get detailed memory information.
-        
-        Returns:
-            Dictionary with memory statistics
-        """
-        if self.process:
-            try:
-                memory_info = self.process.memory_info()
-                return {
-                    'rss_mb': memory_info.rss / (1024 * 1024),
-                    'vms_mb': memory_info.vms / (1024 * 1024),
-                    'peak_mb': self.peak_usage,
-                    'threshold_mb': self.threshold_bytes / (1024 * 1024)
-                }
-            except Exception:
-                pass
-        
-        return {
-            'rss_mb': 0.0,
-            'vms_mb': 0.0,
-            'peak_mb': self.peak_usage,
-            'threshold_mb': self.threshold_bytes / (1024 * 1024)
-        }

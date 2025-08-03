@@ -34,6 +34,7 @@ from .models.exceptions import (
     InsufficientDataError,
     VaultValidationError,
 )
+from .utils.progress_tracker import ProgressTracker, BatchProgressTracker
 
 logger = setup_logging(__name__)
 
@@ -41,12 +42,13 @@ logger = setup_logging(__name__)
 class DatasetGenerator:
     """Main orchestrator for dataset generation process."""
 
-    def __init__(self, vault_path: Path, output_dir: Path):
+    def __init__(self, vault_path: Path, output_dir: Path, skip_validation: bool = False):
         """Initialize the dataset generator.
         
         Args:
             vault_path: Path to the Obsidian vault
             output_dir: Directory for output files
+            skip_validation: Skip validation during initialization (for testing)
             
         Raises:
             VaultValidationError: If vault is invalid
@@ -55,13 +57,14 @@ class DatasetGenerator:
         self.vault_path = vault_path.resolve()
         self.output_dir = output_dir.resolve()
 
-        # Validate inputs
-        validation_result = self.validate_vault()
-        if not validation_result.valid:
-            raise VaultValidationError(
-                f"Vault validation failed: {', '.join(validation_result.errors)}",
-                vault_path=str(vault_path)
-            )
+        # Validate inputs (unless skipped for testing)
+        if not skip_validation:
+            validation_result = self.validate_vault()
+            if not validation_result.valid:
+                raise VaultValidationError(
+                    f"Vault validation failed: {', '.join(validation_result.errors)}",
+                    vault_path=str(vault_path)
+                )
 
         # Initialize services
         try:
@@ -275,6 +278,257 @@ class DatasetGenerator:
 
             return result
 
+    def generate_datasets_with_progress_tracking(self,
+                                               notes_filename: str = "notes_dataset.csv",
+                                               pairs_filename: str = "pairs_dataset.csv",
+                                               negative_sampling_ratio: float = 5.0,
+                                               sampling_strategy: str = "stratified",
+                                               batch_size: int = 32,
+                                               max_pairs_per_note: int = 1000,
+                                               use_parallel: bool = True,
+                                               progress_callback=None) -> DatasetGenerationResult:
+        """Generate datasets with comprehensive progress tracking and performance monitoring.
+        
+        Args:
+            notes_filename: Output filename for notes dataset
+            pairs_filename: Output filename for pairs dataset
+            negative_sampling_ratio: Ratio of negative to positive examples
+            sampling_strategy: Sampling strategy ('random' or 'stratified')
+            batch_size: Batch size for processing
+            max_pairs_per_note: Maximum pairs per note
+            use_parallel: Whether to use parallel processing
+            progress_callback: Optional callback for progress updates
+            
+        Returns:
+            DatasetGenerationResult with generation summary and file paths
+        """
+        start_time = time.time()
+        logger.info("Starting dataset generation with comprehensive progress tracking")
+
+        try:
+            # Create output directory
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Get all notes first to estimate total work
+            all_notes = [str(path) for path in self.vault_reader.get_markdown_files()]
+            logger.info(f"Found {len(all_notes)} notes in vault")
+
+            if len(all_notes) < 5:
+                raise InsufficientDataError(
+                    f"Insufficient notes for dataset generation: {len(all_notes)} < 5",
+                    required_minimum=5,
+                    actual_count=len(all_notes)
+                )
+
+            # Initialize comprehensive progress tracking
+            # Estimate total work: link extraction + notes processing + pairs processing
+            estimated_pairs = min(len(all_notes) * 50, 10000)  # Rough estimate
+            total_work_items = len(all_notes) + estimated_pairs
+            
+            main_progress = ProgressTracker(
+                total_items=total_work_items,
+                description="Dataset Generation",
+                update_interval=2.0
+            )
+
+            # Add progress callback if provided
+            if progress_callback:
+                def progress_wrapper(info):
+                    progress_callback(
+                        f"{info['description']}: {info['processed_items']}/{info['total_items']} "
+                        f"({info['progress_percent']:.1f}%)",
+                        info['processed_items'],
+                        info['total_items']
+                    )
+                main_progress.add_progress_callback(progress_wrapper)
+
+            # Step 1: Extract links and build graph
+            logger.info("Step 1: Extracting links and building graph")
+            main_progress.update(0, 0, force_update=True, context="Extracting links")
+            
+            link_graph, link_statistics = self.link_extractor.extract_all_links()
+            
+            # Step 2: Generate notes dataset with progress tracking
+            logger.info("Step 2: Generating notes dataset")
+            notes_progress = ProgressTracker(
+                total_items=len(all_notes),
+                description="Notes Processing",
+                update_interval=1.0
+            )
+
+            def notes_progress_callback(processed, total):
+                notes_progress.update(processed, 0, context="processing notes")
+                # Update main progress (notes are first half of work)
+                main_progress.update(processed, 0, context="notes dataset")
+
+            # Choose processing method based on use_parallel flag
+            if use_parallel and hasattr(self.notes_generator, 'generate_dataset_parallel'):
+                notes_dataset = self.notes_generator.generate_dataset_parallel(
+                    all_notes, link_graph, batch_size=batch_size, 
+                    progress_callback=notes_progress_callback
+                )
+            else:
+                notes_dataset = self.notes_generator.generate_dataset(
+                    all_notes, link_graph, batch_size=batch_size, 
+                    progress_callback=notes_progress_callback
+                )
+
+            notes_progress.finish("notes dataset generation")
+
+            # Save notes dataset
+            notes_output_path = self.output_dir / notes_filename
+            notes_dataset.to_csv(notes_output_path, index=False)
+            logger.info(f"Notes dataset saved to: {notes_output_path}")
+
+            # Step 3: Load note data for pairs generation
+            logger.info("Step 3: Preparing note data for pairs generation")
+            main_progress.update(len(all_notes), 0, force_update=True, context="preparing pairs data")
+            
+            notes_data = self._load_notes_data_for_pairs(all_notes)
+
+            # Step 4: Generate pairs dataset with progress tracking
+            logger.info("Step 4: Generating pairs dataset")
+            
+            # Set up sampling strategy
+            if sampling_strategy == "stratified":
+                sampling_strategy_obj = StratifiedSamplingStrategy(notes_data)
+            else:
+                sampling_strategy_obj = RandomSamplingStrategy()
+
+            self.pairs_generator.sampling_strategy = sampling_strategy_obj
+
+            # Estimate actual number of pairs
+            positive_pairs = self.pairs_generator._extract_positive_pairs(link_graph)
+            target_negative_count = min(
+                int(len(positive_pairs) * negative_sampling_ratio),
+                (len(all_notes) * (len(all_notes) - 1)) // 2 - len(positive_pairs)
+            )
+            actual_pairs_count = len(positive_pairs) + target_negative_count
+
+            pairs_progress = ProgressTracker(
+                total_items=actual_pairs_count,
+                description="Pairs Processing",
+                update_interval=1.0
+            )
+
+            def pairs_progress_callback(processed, total):
+                pairs_progress.update(processed, 0, context="processing pairs")
+                # Update main progress (pairs are second half of work)
+                main_progress.update(len(all_notes) + processed, 0, context="pairs dataset")
+
+            # Choose processing method based on use_parallel flag
+            if use_parallel and hasattr(self.pairs_generator, 'generate_dataset_parallel'):
+                pairs_dataset = self.pairs_generator.generate_dataset_parallel(
+                    notes_data, link_graph,
+                    negative_sampling_ratio=negative_sampling_ratio,
+                    max_pairs_per_note=max_pairs_per_note,
+                    batch_size=batch_size,
+                    progress_callback=pairs_progress_callback
+                )
+            else:
+                pairs_dataset = self.pairs_generator.generate_dataset(
+                    notes_data, link_graph,
+                    negative_sampling_ratio=negative_sampling_ratio,
+                    max_pairs_per_note=max_pairs_per_note,
+                    batch_size=batch_size,
+                    progress_callback=pairs_progress_callback
+                )
+
+            pairs_progress.finish("pairs dataset generation")
+
+            # Save pairs dataset
+            pairs_output_path = self.output_dir / pairs_filename
+            pairs_dataset.to_csv(pairs_output_path, index=False)
+            logger.info(f"Pairs dataset saved to: {pairs_output_path}")
+
+            # Step 5: Finalize and generate summary
+            main_progress.update(total_work_items, 0, force_update=True, context="finalizing")
+            main_progress.finish("dataset generation")
+
+            total_time = time.time() - start_time
+
+            # Get comprehensive performance metrics
+            main_performance = main_progress.get_performance_summary()
+            notes_performance = notes_progress.get_performance_summary()
+            pairs_performance = pairs_progress.get_performance_summary()
+
+            # Create generation summary with enhanced metrics
+            positive_pairs_count = pairs_dataset['link_exists'].sum() if 'link_exists' in pairs_dataset.columns else 0
+            negative_pairs_count = len(pairs_dataset) - positive_pairs_count
+
+            validation_result = ValidationResult(
+                valid=True,
+                notes_processed=len(notes_dataset),
+                links_extracted=link_statistics.total_links,
+                links_broken=link_statistics.broken_links
+            )
+
+            summary = GenerationSummary(
+                total_notes=len(all_notes),
+                notes_processed=len(notes_dataset),
+                notes_failed=len(all_notes) - len(notes_dataset),
+                pairs_generated=len(pairs_dataset),
+                positive_pairs=positive_pairs_count,
+                negative_pairs=negative_pairs_count,
+                total_time_seconds=total_time,
+                link_statistics=link_statistics,
+                validation_result=validation_result,
+                output_files={
+                    "notes_dataset": str(notes_output_path),
+                    "pairs_dataset": str(pairs_output_path)
+                },
+                performance_metrics={
+                    "notes_per_second": notes_performance.average_rate,
+                    "pairs_per_second": pairs_performance.average_rate,
+                    "peak_memory_mb": main_performance.peak_memory_mb,
+                    "memory_increase_mb": main_performance.current_memory_mb - main_performance.initial_memory_mb,
+                    "notes_success_rate": notes_performance.success_rate,
+                    "pairs_success_rate": pairs_performance.success_rate,
+                    "parallel_processing": use_parallel,
+                    "batch_size": batch_size
+                }
+            )
+
+            result = DatasetGenerationResult(
+                success=True,
+                summary=summary,
+                notes_dataset_path=str(notes_output_path),
+                pairs_dataset_path=str(pairs_output_path)
+            )
+
+            logger.info(f"Dataset generation with progress tracking completed successfully in {total_time:.2f}s")
+            logger.info(f"Notes dataset: {len(notes_dataset)} rows (rate: {notes_performance.average_rate:.2f}/sec)")
+            logger.info(f"Pairs dataset: {len(pairs_dataset)} rows (rate: {pairs_performance.average_rate:.2f}/sec)")
+            logger.info(f"Peak memory usage: {main_performance.peak_memory_mb:.1f}MB")
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Dataset generation with progress tracking failed: {e}")
+
+            total_time = time.time() - start_time
+
+            # Create failed result
+            failed_summary = GenerationSummary(
+                total_notes=len(all_notes) if 'all_notes' in locals() else 0,
+                notes_processed=0,
+                notes_failed=0,
+                pairs_generated=0,
+                positive_pairs=0,
+                negative_pairs=0,
+                total_time_seconds=total_time,
+                link_statistics=link_statistics if 'link_statistics' in locals() else None,
+                validation_result=ValidationResult(valid=False, errors=[str(e)])
+            )
+
+            result = DatasetGenerationResult(
+                success=False,
+                summary=failed_summary,
+                error_message=str(e)
+            )
+
+            return result
+
     def _load_notes_data_for_pairs(self, note_paths: list[str]) -> dict[str, NoteData]:
         """Load note data needed for pairs generation.
         
@@ -413,7 +667,10 @@ class DatasetGenerator:
             return False
 
         # Check if vault path is readable
-        if not self.vault_path.is_readable():
+        try:
+            # Test readability by trying to list directory contents
+            list(self.vault_path.iterdir())
+        except PermissionError:
             result.valid = False
             result.errors.append(f"Vault path is not readable: {self.vault_path}")
             return False

@@ -22,6 +22,9 @@ from jarvis.utils.logging import setup_logging
 from ..models.data_models import NoteData, PairFeatures, ProcessingStats, ValidationResult
 from ..models.exceptions import FeatureEngineeringError, InsufficientDataError, SamplingError
 from ..models.interfaces import BaseSamplingStrategy
+from ..utils.streaming_processor import StreamingPairGenerator, StreamingDatasetWriter, DiskBasedCache
+from ..utils.memory_monitor import MemoryMonitor, PerformanceTracker
+from ..utils.parallel_processor import ParallelBatchProcessor, ParallelFeatureExtractor
 
 logger = setup_logging(__name__)
 
@@ -301,6 +304,364 @@ class PairsDatasetGenerator:
             if isinstance(e, (InsufficientDataError, SamplingError, FeatureEngineeringError)):
                 raise
             raise FeatureEngineeringError(f"Failed to generate pairs dataset: {e}") from e
+
+    def generate_dataset_streaming(self, notes_data: dict[str, NoteData],
+                                 link_graph: nx.DiGraph,
+                                 output_path: Path,
+                                 negative_sampling_ratio: float = 5.0,
+                                 max_pairs_per_note: int = 1000,
+                                 chunk_size: int = 1000,
+                                 progress_callback=None) -> int:
+        """Generate pairs dataset using streaming processing for large datasets.
+        
+        Args:
+            notes_data: Dictionary mapping note paths to NoteData
+            link_graph: NetworkX graph of note relationships
+            output_path: Path to output CSV file
+            negative_sampling_ratio: Ratio of negative to positive examples
+            max_pairs_per_note: Maximum pairs to consider per note
+            chunk_size: Size of processing chunks
+            progress_callback: Optional callback for progress updates
+            
+        Returns:
+            Number of pairs processed
+            
+        Raises:
+            InsufficientDataError: If not enough data for meaningful pairs
+            SamplingError: If sampling fails
+        """
+        logger.info(f"Starting streaming pairs dataset generation for {len(notes_data)} notes")
+
+        if len(notes_data) < 5:
+            raise InsufficientDataError(
+                f"Insufficient notes for pairs generation: {len(notes_data)} < 5",
+                required_minimum=5,
+                actual_count=len(notes_data)
+            )
+
+        # Initialize memory monitoring and performance tracking
+        memory_monitor = MemoryMonitor(threshold_mb=1500, warning_threshold_mb=1200)
+        performance_tracker = PerformanceTracker()
+        disk_cache = DiskBasedCache()
+
+        try:
+            # Extract positive pairs from the graph
+            positive_pairs = self._extract_positive_pairs(link_graph)
+            logger.info(f"Found {len(positive_pairs)} positive pairs")
+
+            if len(positive_pairs) == 0:
+                raise InsufficientDataError(
+                    "No positive pairs found in link graph",
+                    required_minimum=1,
+                    actual_count=0
+                )
+
+            # Generate negative pairs
+            all_notes = list(notes_data.keys())
+            target_negative_count = min(
+                int(len(positive_pairs) * negative_sampling_ratio),
+                (len(all_notes) * (len(all_notes) - 1)) // 2 - len(positive_pairs)
+            )
+
+            logger.info(f"Generating {target_negative_count} negative pairs")
+            negative_pairs = self._smart_negative_sampling(
+                positive_pairs, all_notes, target_negative_count, notes_data
+            )
+
+            # Initialize streaming components
+            streaming_generator = StreamingPairGenerator(max_memory_pairs=chunk_size)
+            
+            total_pairs = len(positive_pairs) + len(negative_pairs)
+            logger.info(f"Total pairs to process: {total_pairs}")
+
+            # Process pairs in streaming fashion
+            processed_count = 0
+            failed_count = 0
+
+            with StreamingDatasetWriter(output_path, buffer_size=chunk_size // 10) as writer:
+                # Stream all pairs
+                pair_stream = streaming_generator.stream_pairs(all_notes, positive_pairs, negative_pairs)
+                
+                current_chunk = []
+                for pair_data in pair_stream:
+                    current_chunk.append(pair_data)
+                    
+                    # Process chunk when full
+                    if len(current_chunk) >= chunk_size:
+                        chunk_start_time = time.time()
+                        
+                        # Check memory before processing
+                        if memory_monitor.should_cleanup():
+                            logger.debug("Performing memory cleanup before chunk processing")
+                            memory_monitor.force_cleanup()
+                        
+                        # Process chunk
+                        chunk_results = self._process_streaming_chunk(
+                            current_chunk, notes_data, link_graph, disk_cache
+                        )
+                        
+                        # Write results
+                        for result in chunk_results:
+                            if result is not None:
+                                writer.write_features(result)
+                                processed_count += 1
+                            else:
+                                failed_count += 1
+                        
+                        # Record performance
+                        chunk_time = time.time() - chunk_start_time
+                        performance_tracker.record_batch(
+                            len(current_chunk), chunk_time, 
+                            memory_monitor.get_current_usage(), 
+                            sum(1 for r in chunk_results if r is None)
+                        )
+                        
+                        # Update progress
+                        if progress_callback:
+                            progress_callback(processed_count + failed_count, total_pairs)
+                        
+                        # Log progress
+                        if processed_count % (chunk_size * 10) == 0:
+                            logger.info(f"Processed {processed_count + failed_count}/{total_pairs} pairs "
+                                      f"(Memory: {memory_monitor.get_current_usage():.1f}MB)")
+                        
+                        current_chunk.clear()
+                
+                # Process remaining pairs
+                if current_chunk:
+                    chunk_results = self._process_streaming_chunk(
+                        current_chunk, notes_data, link_graph, disk_cache
+                    )
+                    
+                    for result in chunk_results:
+                        if result is not None:
+                            writer.write_features(result)
+                            processed_count += 1
+                        else:
+                            failed_count += 1
+
+            # Log final performance summary
+            performance_tracker.log_performance_summary()
+            memory_monitor.log_memory_status("final")
+
+            logger.info(f"Streaming pairs processing complete: {processed_count} successful, {failed_count} failed")
+            return processed_count
+
+        except Exception as e:
+            logger.error(f"Streaming pairs dataset generation failed: {e}")
+            if isinstance(e, (InsufficientDataError, SamplingError, FeatureEngineeringError)):
+                raise
+            raise FeatureEngineeringError(f"Failed to generate streaming pairs dataset: {e}") from e
+        finally:
+            # Cleanup resources
+            try:
+                streaming_generator.cleanup()
+                disk_cache.clear()
+            except Exception as e:
+                logger.warning(f"Cleanup failed: {e}")
+
+    def _process_streaming_chunk(self, chunk_pairs: list[tuple[str, str, bool]],
+                               notes_data: dict[str, NoteData],
+                               link_graph: nx.DiGraph,
+                               disk_cache: DiskBasedCache) -> list[PairFeatures | None]:
+        """Process a chunk of pairs in streaming fashion with caching.
+        
+        Args:
+            chunk_pairs: List of (note_a, note_b, is_positive) tuples
+            notes_data: Dictionary of note data
+            link_graph: NetworkX graph for relationship calculations
+            disk_cache: Disk-based cache for intermediate results
+            
+        Returns:
+            List of PairFeatures objects (None for failed pairs)
+        """
+        chunk_features = []
+
+        for note_a_path, note_b_path, link_exists in chunk_pairs:
+            try:
+                # Check cache first
+                cache_key = f"pair_{hash((note_a_path, note_b_path))}"
+                cached_features = disk_cache.get(cache_key)
+                
+                if cached_features is not None:
+                    # Update link_exists in case it changed
+                    cached_features.link_exists = link_exists
+                    chunk_features.append(cached_features)
+                    continue
+
+                # Get note data
+                note_a = notes_data.get(note_a_path)
+                note_b = notes_data.get(note_b_path)
+
+                if note_a is None or note_b is None:
+                    logger.warning(f"Missing note data for pair: {note_a_path}, {note_b_path}")
+                    chunk_features.append(None)
+                    continue
+
+                # Extract pair features
+                features = self._compute_pair_features(note_a, note_b, link_graph, link_exists)
+                
+                # Cache the result
+                disk_cache.put(cache_key, features)
+                
+                chunk_features.append(features)
+
+            except Exception as e:
+                logger.warning(f"Failed to extract features for pair {note_a_path}, {note_b_path}: {e}")
+                chunk_features.append(None)
+
+        return chunk_features
+
+    def generate_dataset_parallel(self, notes_data: dict[str, NoteData],
+                                 link_graph: nx.DiGraph,
+                                 negative_sampling_ratio: float = 5.0,
+                                 max_pairs_per_note: int = 1000,
+                                 batch_size: int = 32,
+                                 max_workers: int = None,
+                                 progress_callback=None) -> pd.DataFrame:
+        """Generate pairs dataset using parallel processing for feature extraction.
+        
+        Args:
+            notes_data: Dictionary mapping note paths to NoteData
+            link_graph: NetworkX graph of note relationships
+            negative_sampling_ratio: Ratio of negative to positive examples
+            max_pairs_per_note: Maximum pairs to consider per note
+            batch_size: Batch size for processing
+            max_workers: Maximum number of parallel workers (None for auto)
+            progress_callback: Optional callback for progress updates
+            
+        Returns:
+            DataFrame containing pair features
+            
+        Raises:
+            InsufficientDataError: If not enough data for meaningful pairs
+            SamplingError: If sampling fails
+        """
+        logger.info(f"Starting parallel pairs dataset generation for {len(notes_data)} notes")
+
+        if len(notes_data) < 5:
+            raise InsufficientDataError(
+                f"Insufficient notes for pairs generation: {len(notes_data)} < 5",
+                required_minimum=5,
+                actual_count=len(notes_data)
+            )
+
+        # Initialize processing stats and monitoring
+        self._processing_stats = ProcessingStats(start_time=datetime.now())
+        memory_monitor = MemoryMonitor(threshold_mb=1500, warning_threshold_mb=1200)
+        performance_tracker = PerformanceTracker()
+
+        try:
+            # Extract positive pairs from the graph
+            positive_pairs = self._extract_positive_pairs(link_graph)
+            logger.info(f"Found {len(positive_pairs)} positive pairs")
+
+            if len(positive_pairs) == 0:
+                raise InsufficientDataError(
+                    "No positive pairs found in link graph",
+                    required_minimum=1,
+                    actual_count=0
+                )
+
+            # Generate negative pairs
+            all_notes = list(notes_data.keys())
+            target_negative_count = min(
+                int(len(positive_pairs) * negative_sampling_ratio),
+                (len(all_notes) * (len(all_notes) - 1)) // 2 - len(positive_pairs)
+            )
+
+            logger.info(f"Generating {target_negative_count} negative pairs")
+            negative_pairs = self._smart_negative_sampling(
+                positive_pairs, all_notes, target_negative_count, notes_data
+            )
+
+            # Combine positive and negative pairs
+            all_pairs = [(pair[0], pair[1], True) for pair in positive_pairs]
+            all_pairs.extend([(pair[0], pair[1], False) for pair in negative_pairs])
+
+            logger.info(f"Total pairs to process: {len(all_pairs)} ({len(positive_pairs)} positive, {len(negative_pairs)} negative)")
+
+            # Limit pairs per note if specified
+            if max_pairs_per_note > 0:
+                all_pairs = self._limit_pairs_per_note(all_pairs, max_pairs_per_note)
+                logger.info(f"Limited to {len(all_pairs)} pairs after per-note limit")
+
+            # Initialize parallel processing components
+            batch_processor = ParallelBatchProcessor(max_workers, batch_size)
+
+            # Create pair feature extraction function for parallel processing
+            def extract_pair_features_wrapper(pair_data: tuple[str, str, bool]) -> PairFeatures | None:
+                try:
+                    note_a_path, note_b_path, link_exists = pair_data
+                    
+                    # Get note data
+                    note_a = notes_data.get(note_a_path)
+                    note_b = notes_data.get(note_b_path)
+
+                    if note_a is None or note_b is None:
+                        return None
+
+                    # Extract pair features
+                    features = self._compute_pair_features(note_a, note_b, link_graph, link_exists)
+                    return features
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to extract features for pair {pair_data[0]} <-> {pair_data[1]}: {e}")
+                    return None
+
+            # Process pairs in parallel batches
+            logger.info("Processing pairs in parallel batches")
+            
+            def process_pair_batch_parallel(batch_pairs: list[tuple[str, str, bool]]) -> list[PairFeatures | None]:
+                """Process a batch of pairs in parallel."""
+                # Check memory before processing batch
+                if memory_monitor.should_cleanup():
+                    logger.debug("Performing memory cleanup before parallel batch")
+                    memory_monitor.force_cleanup()
+                
+                # Use parallel feature extractor for the batch
+                parallel_extractor = ParallelFeatureExtractor(max_workers)
+                batch_results = parallel_extractor.extract_features_parallel(
+                    batch_pairs, extract_pair_features_wrapper
+                )
+                
+                return batch_results
+
+            # Process all pairs using parallel batch processor
+            all_features = batch_processor.process_batches(
+                all_pairs, process_pair_batch_parallel, progress_callback
+            )
+
+            # Filter out None results and count statistics
+            pair_features_list = [f for f in all_features if f is not None]
+            processed_count = len(pair_features_list)
+            failed_count = len(all_features) - processed_count
+
+            # Update processing stats
+            self._processing_stats.end_time = datetime.now()
+            self._processing_stats.items_processed = processed_count
+            self._processing_stats.items_failed = failed_count
+
+            logger.info(f"Parallel pairs processing complete: {processed_count} successful, {failed_count} failed")
+            logger.info(f"Peak memory usage: {memory_monitor.get_peak_usage():.1f}MB")
+
+            if not pair_features_list:
+                raise FeatureEngineeringError("No pair features could be extracted")
+
+            # Convert to DataFrame
+            dataset = self._create_dataframe(pair_features_list)
+
+            # Log final performance summary
+            performance_tracker.log_performance_summary()
+
+            logger.info(f"Parallel pairs dataset created: {len(dataset)} rows, {len(dataset.columns)} columns")
+            return dataset
+
+        except Exception as e:
+            logger.error(f"Parallel pairs dataset generation failed: {e}")
+            if isinstance(e, (InsufficientDataError, SamplingError, FeatureEngineeringError)):
+                raise
+            raise FeatureEngineeringError(f"Failed to generate parallel pairs dataset: {e}") from e
 
     def _extract_positive_pairs(self, link_graph: nx.DiGraph) -> set[tuple[str, str]]:
         """Extract positive pairs from the link graph.
