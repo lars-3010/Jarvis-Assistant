@@ -2,8 +2,7 @@
 
 MCP server providing semantic search and graph analysis tools for AI systems to intelligently discover knowledge in Obsidian vaults.
 
-![[resources/images/high-level-architecture.svg]]
-![[resources/images/high-level-architecture.png]]
+![High Level Architecture](resources/images/high-level-architecture.svg)
 
 ## Key Features
 
