@@ -1,0 +1,115 @@
+<mxfile host="65bd71144e">
+    <diagram id="9V01KtyQSSpPtvViTNNg" name="Seite-1">
+        <mxGraphModel dx="1176" dy="873" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1000" pageHeight="800" background="none" math="0" shadow="1">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="Jarvis Assistant Architecture" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=24;fontStyle=1;fontColor=#2D3748;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="10" width="400" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="subtitle" value="AI-Powered Knowledge Discovery via Model Context Protocol" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=14;fontColor=#718096;" parent="1" vertex="1">
+                    <mxGeometry x="250" y="40" width="500" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="ai-client" value="&lt;h3&gt;&lt;font color=&quot;#ffffff&quot;&gt;AI Client&lt;/font&gt;&lt;/h3&gt;&lt;p&gt;&lt;font color=&quot;#ffffff&quot;&gt;Claude Desktop&lt;/font&gt;&lt;/p&gt;&lt;p&gt;&lt;font color=&quot;#e2e8f0&quot;&gt;Human Interface • Natural Language Queries&lt;/font&gt;&lt;/p&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#667eea;strokeColor=none;shadow=1;gradientColor=#764ba2;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="80" width="300" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="mcp-protocol" value="Model Context Protocol&lt;br&gt;&lt;font style=&quot;font-size: 10px&quot;&gt;JSON-RPC • stdio&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4a5568;strokeColor=none;fontColor=#ffffff;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="430" y="185" width="140" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="mcp-server" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#11998e;strokeColor=none;shadow=1;gradientColor=#38ef7d;" parent="1" vertex="1">
+                    <mxGeometry x="100" y="240" width="800" height="180" as="geometry"/>
+                </mxCell>
+                <mxCell id="mcp-server-title" value="&lt;h2&gt;&lt;font color=&quot;#ffffff&quot;&gt;MCP Server (Jarvis Assistant)&lt;/font&gt;&lt;/h2&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
+                    <mxGeometry x="400" y="250" width="200" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="tool-semantic" value="&lt;b&gt;search-semantic&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 9px&quot;&gt;Vector Similarity&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=rgba(255,255,255,0.2);strokeColor=none;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="130" y="280" width="140" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="tool-graph" value="&lt;b&gt;search-graph&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 9px&quot;&gt;Relationship Traversal&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=rgba(255,255,255,0.2);strokeColor=none;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="290" y="280" width="140" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="tool-combined" value="&lt;b&gt;search-combined&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 9px&quot;&gt;Hybrid Approach&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=rgba(255,255,255,0.2);strokeColor=none;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="450" y="280" width="140" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="tool-vaults" value="&lt;b&gt;list-vaults&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 9px&quot;&gt;Vault Discovery&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=rgba(255,255,255,0.2);strokeColor=none;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="610" y="280" width="140" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="tool-read" value="read-note" style="rounded=1;whiteSpace=wrap;html=1;fillColor=rgba(255,255,255,0.15);strokeColor=none;fontColor=#ffffff;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="170" y="330" width="120" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="tool-health" value="health-status" style="rounded=1;whiteSpace=wrap;html=1;fillColor=rgba(255,255,255,0.15);strokeColor=none;fontColor=#ffffff;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="310" y="330" width="120" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="tool-analyze" value="analyze-domains" style="rounded=1;whiteSpace=wrap;html=1;fillColor=rgba(255,255,255,0.15);strokeColor=none;fontColor=#ffffff;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="450" y="330" width="120" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="tool-assess" value="assess-quality" style="rounded=1;whiteSpace=wrap;html=1;fillColor=rgba(255,255,255,0.15);strokeColor=none;fontColor=#ffffff;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="590" y="330" width="120" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="core-services" value="&lt;font color=&quot;#ffffff&quot;&gt;Core Services: Vector • Graph • Vault • Health • Analytics&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=14;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="375" width="400" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="architecture-details" value="&lt;font color=&quot;#e2e8f0&quot;&gt;Plugin Architecture • Dependency Injection • Event-Driven&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="395" width="400" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="vector-db" value="&lt;h3&gt;&lt;font color=&quot;#ffffff&quot;&gt;Vector Database&lt;/font&gt;&lt;/h3&gt;&lt;p&gt;&lt;font color=&quot;#ffffff&quot;&gt;DuckDB&lt;/font&gt;&lt;/p&gt;&lt;p&gt;&lt;font color=&quot;#ffffff&quot;&gt;• Sentence Transformers&lt;br&gt;• Vector Embeddings&lt;br&gt;• Semantic Similarity&lt;/font&gt;&lt;/p&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fd79a8;strokeColor=none;shadow=1;gradientColor=#fdcb6e;" parent="1" vertex="1">
+                    <mxGeometry x="100" y="500" width="300" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="graph-db" value="&lt;h3&gt;&lt;font color=&quot;#ffffff&quot;&gt;Graph Database&lt;/font&gt;&lt;/h3&gt;&lt;p&gt;&lt;font color=&quot;#ffffff&quot;&gt;Neo4j&lt;/font&gt;&lt;/p&gt;&lt;p&gt;&lt;font color=&quot;#ffffff&quot;&gt;• Node Relationships&lt;br&gt;• Link Analysis&lt;br&gt;• Graph Traversal&lt;/font&gt;&lt;/p&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#6c5ce7;strokeColor=none;shadow=1;gradientColor=#a29bfe;" parent="1" vertex="1">
+                    <mxGeometry x="600" y="500" width="300" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="data-source" value="&lt;h3&gt;&lt;font color=&quot;#ffffff&quot;&gt;Data Source&lt;/font&gt;&lt;/h3&gt;&lt;p&gt;&lt;font color=&quot;#ffffff&quot;&gt;Obsidian Vault&lt;/font&gt;&lt;/p&gt;&lt;p&gt;&lt;font color=&quot;#cbd5e0&quot;&gt;Markdown Files • Links • Metadata&lt;/font&gt;&lt;/p&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4a5568;strokeColor=none;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="400" y="660" width="200" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="features-callout" value="&lt;h4&gt;Key Features&lt;/h4&gt;&lt;p&gt;✓ Local-First Processing&lt;br&gt;✓ Privacy &amp;amp; Control&lt;br&gt;✓ Real-time Search&lt;br&gt;✓ Plugin Architecture&lt;br&gt;✓ Production Ready&lt;/p&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#edf2f7;strokeColor=#cbd5e0;shadow=1;fontColor=#2d3748;align=left;verticalAlign=top;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="350" width="160" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="performance-metrics" value="&lt;h4&gt;Performance&lt;/h4&gt;&lt;p&gt;⚡ &amp;lt;500ms Response Time&lt;br&gt;🔧 10+ MCP Tools&lt;br&gt;📊 97% Test Coverage&lt;br&gt;🎯 99.9% Reliability&lt;br&gt;🚀 Zero External Deps&lt;/p&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#edf2f7;strokeColor=#cbd5e0;shadow=1;fontColor=#2d3748;align=left;verticalAlign=top;" parent="1" vertex="1">
+                    <mxGeometry x="820" y="350" width="160" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="conn1" value="" style="endArrow=classic;html=1;rounded=0;strokeColor=#2d3748;strokeWidth=3;" parent="1" source="ai-client" target="mcp-protocol" edge="1">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="500" y="160" as="sourcePoint"/>
+                        <mxPoint x="500" y="185" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="conn2" value="" style="endArrow=classic;html=1;rounded=0;strokeColor=#2d3748;strokeWidth=3;" parent="1" source="mcp-protocol" target="mcp-server" edge="1">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="500" y="210" as="sourcePoint"/>
+                        <mxPoint x="500" y="240" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="conn3" value="Embeddings&lt;br&gt;Similarity Search" style="endArrow=classic;html=1;rounded=0;strokeColor=#2d3748;strokeWidth=3;fontColor=#718096;fontSize=10;" parent="1" source="mcp-server" target="vector-db" edge="1">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="300" y="420" as="sourcePoint"/>
+                        <mxPoint x="250" y="500" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="conn4" value="Node Relations&lt;br&gt;Cypher Queries" style="endArrow=classic;html=1;rounded=0;strokeColor=#2d3748;strokeWidth=3;fontColor=#718096;fontSize=10;" parent="1" source="mcp-server" target="graph-db" edge="1">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="700" y="420" as="sourcePoint"/>
+                        <mxPoint x="750" y="500" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="conn5" value="" style="endArrow=none;html=1;rounded=0;strokeColor=#718096;strokeWidth=2;dashed=1;" parent="1" source="vector-db" target="data-source" edge="1">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="350" y="620" as="sourcePoint"/>
+                        <mxPoint x="450" y="660" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="conn6" value="" style="endArrow=none;html=1;rounded=0;strokeColor=#718096;strokeWidth=2;dashed=1;" parent="1" source="graph-db" target="data-source" edge="1">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="650" y="620" as="sourcePoint"/>
+                        <mxPoint x="550" y="660" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="query-label" value="Natural Language Query" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontColor=#718096;" parent="1" vertex="1">
+                    <mxGeometry x="520" y="170" width="120" height="15" as="geometry"/>
+                </mxCell>
+                <mxCell id="response-label" value="Structured Knowledge Response" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontColor=#718096;" parent="1" vertex="1">
+                    <mxGeometry x="520" y="440" width="150" height="15" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
