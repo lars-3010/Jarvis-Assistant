@@ -1203,7 +1203,10 @@ def main() -> None:
     
     # Default configuration for standalone execution
     default_vaults = {}
-    default_db_path = Path.home() / ".jarvis" / "jarvis.duckdb"
+    
+    # Check for database path from environment
+    db_env = os.getenv("JARVIS_DATABASE_PATH")
+    default_db_path = Path(db_env).expanduser() if db_env else Path.home() / ".jarvis" / "jarvis.duckdb"
     
     # Check for environment variables
     vault_env = os.getenv("JARVIS_VAULT_PATH")

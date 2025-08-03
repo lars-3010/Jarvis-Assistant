@@ -42,13 +42,13 @@ def test_mcp_server():
     print("Testing MCP server startup...", file=sys.stderr)
     
     # Change to the project directory
-    project_dir = "/Users/larsboes/Developer/Projects/Jarvis-Assistant"
+    project_dir = "/path/to/your/Jarvis-Assistant"
     os.chdir(project_dir)
     
     # Run the MCP server command
     cmd = [
         "uv", "run", "jarvis", "mcp", 
-        "--vault", "/Users/larsboes/Library/Mobile Documents/iCloud~md~obsidian/Documents/Second-Brain"
+        "--vault", "${JARVIS_VAULT_PATH}"
     ]
     
     print(f"Running command: {' '.join(cmd)}", file=sys.stderr)
@@ -322,7 +322,7 @@ if __name__ == "__main__":
 
 ### 1. Manual MCP Server Test
 ```bash
-echo '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0"}}}' | uv run jarvis-mcp-stdio "/Users/larsboes/Library/Mobile Documents/iCloud~md~obsidian/Documents/Second-Brain"
+echo '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0"}}}' | uv run jarvis-mcp-stdio "$JARVIS_VAULT_PATH"
 ```
 
 ### 2. Debug Script Test
@@ -332,7 +332,7 @@ python3 debug_mcp.py
 
 ### 3. Environment Variable Test
 ```bash
-JARVIS_VAULT_PATH="/Users/larsboes/Library/Mobile Documents/iCloud~md~obsidian/Documents/Second-Brain" JARVIS_DATABASE_PATH="/Users/larsboes/.jarvis/jarvis.duckdb" python3 mcp_wrapper.py
+python3 mcp_wrapper.py
 ```
 
 ## Final Configuration
@@ -349,8 +349,8 @@ jarvis-mcp-stdio = "jarvis.mcp.mcp_main:main_sync"
 ```json
 "jarvis": {
   "command": "uv",
-  "args": ["run", "jarvis-mcp-stdio", "/Users/larsboes/Library/Mobile Documents/iCloud~md~obsidian/Documents/Second-Brain"],
-  "cwd": "/Users/larsboes/Developer/Projects/Jarvis-Assistant",
+  "args": ["run", "jarvis-mcp-stdio", "${JARVIS_VAULT_PATH}"],
+  "cwd": "/path/to/your/Jarvis-Assistant",
   "env": {
     "PYTHONUNBUFFERED": "1",
     "PYTHONIOENCODING": "utf-8"

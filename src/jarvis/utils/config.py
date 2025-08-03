@@ -88,7 +88,7 @@ class JarvisSettings(BaseSettings):
         description="Vector database backend: duckdb, chroma, pinecone"
     )
     vector_db_path: str = Field(
-        default="resources/data/jarvis-vector.duckdb",
+        default="~/.jarvis/jarvis-vector.duckdb",
         env="JARVIS_VECTOR_DB_PATH",
         description="Path to DuckDB vector database file"
     )
@@ -197,6 +197,13 @@ class JarvisSettings(BaseSettings):
         description="Force reindex all documents on startup"
     )
     
+    # Dataset generation settings
+    dataset_output_dir: str = Field(
+        default="./datasets",
+        env="JARVIS_DATASET_OUTPUT_DIR",
+        description="Default output directory for generated datasets"
+    )
+    
     # Search settings
     search_default_limit: int = Field(
         default=10,
@@ -219,6 +226,18 @@ class JarvisSettings(BaseSettings):
         default="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         env="JARVIS_LOG_FORMAT",
         description="Logging format"
+    )
+    log_file: str = Field(
+        default="~/.jarvis/mcp_server.log",
+        env="JARVIS_LOG_FILE",
+        description="Log file path"
+    )
+    
+    # Database settings
+    database_path: str = Field(
+        default="~/.jarvis/jarvis.duckdb",
+        env="JARVIS_DATABASE_PATH",
+        description="Main database file path"
     )
     
     # Service container settings
@@ -390,6 +409,24 @@ class JarvisSettings(BaseSettings):
     def get_extensions_directory(self) -> Path:
         """Get extensions directory path as Path object."""
         return Path(self.extensions_directory).expanduser().resolve()
+    
+    def get_database_path(self) -> Path:
+        """Get main database path as Path object."""
+        path = Path(self.database_path).expanduser().resolve()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+    
+    def get_log_file_path(self) -> Path:
+        """Get log file path as Path object."""
+        path = Path(self.log_file).expanduser().resolve()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+    
+    def get_dataset_output_path(self) -> Path:
+        """Get dataset output directory as Path object."""
+        path = Path(self.dataset_output_dir).expanduser().resolve()
+        path.mkdir(parents=True, exist_ok=True)
+        return path
     
     def validate_settings(self) -> ValidationResult:
         """Validate settings and return status information."""

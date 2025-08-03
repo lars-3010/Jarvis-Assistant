@@ -6,6 +6,7 @@ including MCP server startup and vault indexing operations.
 """
 
 import asyncio
+import os
 import sys
 from pathlib import Path
 from typing import Optional, Dict
@@ -546,7 +547,8 @@ def generate_dataset(ctx: click.Context, vault: Optional[Path], output: Optional
         
         # Determine output directory
         if output is None:
-            output_dir = Path.cwd() / "datasets"
+            # Use settings to get dataset output directory
+            output_dir = settings.get_dataset_output_path()
         else:
             output_dir = output.resolve()
         

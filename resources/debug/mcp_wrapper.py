@@ -18,8 +18,9 @@ from jarvis.utils.logging import setup_logging
 from jarvis.utils.config import JarvisSettings, get_settings
 
 # Redirect logging to a file to avoid interfering with MCP stdio
-log_file = Path.home() / ".jarvis" / "mcp_server.log"
-log_file.parent.mkdir(parents=True, exist_ok=True)
+# Use settings to get log file path
+settings = get_settings()
+log_file = settings.get_log_file_path()
 
 # Setup logging to file only
 import logging
@@ -62,7 +63,8 @@ async def main():
         if database_path:
             db_path = Path(database_path)
         else:
-            db_path = Path.home() / ".jarvis" / "jarvis.duckdb"
+            # Use settings to get database path
+            db_path = settings.get_database_path()
         
         # Ensure database directory exists
         db_path.parent.mkdir(parents=True, exist_ok=True)

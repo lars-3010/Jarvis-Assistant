@@ -43,7 +43,7 @@ def test_vault_path():
 @pytest.fixture
 def test_db_path():
     """Fixture for test database path."""
-    db_path = os.getenv('JARVIS_DATABASE_PATH', 'data/jarvis-vector.duckdb')
+    db_path = os.getenv('JARVIS_DATABASE_PATH', '~/.jarvis/test-jarvis-vector.duckdb')
     return Path(db_path)
 
 
@@ -119,7 +119,7 @@ async def debug_combined_search():
         print("❌ JARVIS_VAULT_PATH environment variable not set")
         return
         
-    db_path_env = os.getenv('JARVIS_DATABASE_PATH', 'data/jarvis-vector.duckdb')
+    db_path_env = os.getenv('JARVIS_DATABASE_PATH', '~/.jarvis/test-jarvis-vector.duckdb')
     
     vault_path = Path(vault_path_env)
     db_path = Path(db_path_env)

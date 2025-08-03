@@ -47,7 +47,7 @@ class VectorDatabaseConfig(DatabaseConfig):
             return cls(
                 backend_type='chroma',
                 collection_name=getattr(settings, 'chroma_collection_name', 'jarvis-embeddings'),
-                persist_directory=getattr(settings, 'chroma_persist_directory', 'resources/data/chroma'),
+                persist_directory=getattr(settings, 'chroma_persist_directory', '~/.jarvis/chroma'),
                 host=getattr(settings, 'chroma_host', None),
                 port=getattr(settings, 'chroma_port', None)
             )

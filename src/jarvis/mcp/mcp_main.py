@@ -18,8 +18,10 @@ from jarvis.utils.config import JarvisSettings, get_settings
 
 def setup_mcp_logging():
     """Setup logging for MCP server - logs to stderr only."""
-    log_file = Path.home() / ".jarvis" / "mcp_server.log"
-    log_file.parent.mkdir(parents=True, exist_ok=True)
+    # Use settings to get log file path
+    from jarvis.utils.config import get_settings
+    settings = get_settings()
+    log_file = settings.get_log_file_path()
     
     # Configure root logger to use stderr and file
     logging.basicConfig(
@@ -67,7 +69,10 @@ async def main():
         if database_path:
             db_path = Path(database_path)
         else:
-            db_path = Path.home() / ".jarvis" / "jarvis.duckdb"
+            # Use settings to get database path
+            from jarvis.utils.config import get_settings
+            settings = get_settings()
+            db_path = settings.get_database_path()
         
         # Ensure database directory exists
         db_path.parent.mkdir(parents=True, exist_ok=True)
