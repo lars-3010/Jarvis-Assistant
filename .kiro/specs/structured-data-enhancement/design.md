@@ -10,7 +10,7 @@ The design maintains full backward compatibility while adding rich metadata, con
 
 ### High-Level Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                    MCP Tools Layer                              │
 ├─────────────────────────────────────────────────────────────────┤
@@ -38,6 +38,7 @@ The enhancement uses a **dual-mode response system**:
 2. **Structured Mode (Opt-in)**: Returns enhanced JSON responses with rich metadata
 
 **Format Selection Mechanism:**
+
 ```python
 # Option 1: Request parameter
 {
@@ -67,6 +68,7 @@ class ResponseFormatRouter:
 ### 2. Enhanced Data Processors
 
 #### Result Enricher
+
 ```python
 class ResultEnricher:
     """Enriches search results with additional metadata and analytics."""
@@ -82,6 +84,7 @@ class ResultEnricher:
 ```
 
 #### Metadata Generator
+
 ```python
 class MetadataGenerator:
     """Generates rich metadata for various content types."""
@@ -99,6 +102,7 @@ class MetadataGenerator:
 ### 3. Structured Response Schemas
 
 #### Enhanced Search Result Schema
+
 ```python
 @dataclass
 class StructuredSearchResult:
@@ -163,6 +167,7 @@ class StructuredSearchResponse:
 ```
 
 #### Enhanced Vault Statistics Schema
+
 ```python
 @dataclass
 class StructuredVaultInfo:
@@ -223,7 +228,7 @@ class StructuredVaultListResponse:
 
 ### 1. Enhanced Search Flow
 
-```
+```text
 User Request → Tool Handler
     ↓
 Format Detection (text/structured)
@@ -245,7 +250,7 @@ Response Delivery
 
 ### 2. Backward Compatibility Flow
 
-```
+```text
 Legacy Request (no format specified)
     ↓
 Default to Text Format
@@ -257,7 +262,7 @@ Return Text Response (unchanged)
 
 ### 3. Structured Enhancement Flow
 
-```
+```text
 Structured Request (format=structured)
     ↓
 Execute Core Logic
@@ -277,46 +282,54 @@ Return JSON Content
 
 ### Phase 1: Foundation and Infrastructure
 
-**1. Response Format Router**
+#### 1. Response Format Router
+
 - Implement format detection and routing logic
 - Create base classes for formatters
 - Add configuration for format preferences
 
-**2. Enhanced Data Models**
+#### 2. Enhanced Data Models
+
 - Define comprehensive data classes for structured responses
 - Implement serialization and validation
 - Create schema documentation
 
-**3. Metadata Generation Framework**
+#### 3. Metadata Generation Framework
+
 - Build metadata generators for files, searches, and system info
 - Implement caching for expensive metadata operations
 - Add performance monitoring
 
 ### Phase 2: Tool Enhancement
 
-**4. Search Tools Enhancement**
+#### 4. Search Tools Enhancement
+
 - Enhance `search-combined` with structured responses
 - Add analytics and follow-up suggestions
 - Implement confidence scoring
 
-**5. Graph Tools Enhancement**
+#### 5. Graph Tools Enhancement
+
 - Enhance `search-graph` with relationship metadata
 - Add connection strength analysis
 - Implement graph analytics
 
-**6. Utility Tools Enhancement**
+#### 6. Utility Tools Enhancement
+
 - Enhance `list-vaults` with comprehensive statistics
 - Add health monitoring and recommendations
 - Implement system performance metrics
 
 ### Phase 3: Advanced Features
 
-**7. Analytics Integration**
+#### 7. Analytics Integration
+
 - Integrate with Vault Analytics Engine (if available)
 - Add cross-tool analytics correlation
 - Implement trend analysis
 
-**8. Performance Optimization**
+#### 8. Performance Optimization
+
 - Optimize metadata generation performance
 - Implement intelligent caching strategies
 - Add resource usage monitoring
@@ -346,18 +359,21 @@ class StructuredErrorInfo:
 ## Testing Strategy
 
 ### Unit Testing
+
 - Response format router logic
 - Data model serialization/deserialization
 - Metadata generation accuracy
 - Error handling scenarios
 
 ### Integration Testing
+
 - End-to-end structured response generation
 - Backward compatibility verification
 - Performance impact measurement
 - Cross-tool consistency validation
 
 ### Compatibility Testing
+
 - Legacy client compatibility
 - Mixed usage scenarios (text + structured)
 - Migration path validation
@@ -382,12 +398,14 @@ class StructuredErrorInfo:
 ## Security Considerations
 
 ### Data Privacy
+
 - **Local Processing**: All metadata generation happens locally
 - **No External Calls**: No data leaves the user's machine
 - **Sensitive Data Filtering**: Remove or mask sensitive information in metadata
 - **Access Control**: Respect existing vault access restrictions
 
 ### Resource Protection
+
 - **Memory Limits**: Configurable limits for metadata generation
 - **CPU Throttling**: Prevent metadata generation from overwhelming system
 - **Timeout Protection**: Prevent runaway metadata operations
@@ -396,6 +414,7 @@ class StructuredErrorInfo:
 ## Configuration
 
 ### Enhancement Settings
+
 ```yaml
 structured_data:
   enabled: true
@@ -444,12 +463,14 @@ structured_data:
 ## Future Extensions
 
 ### Advanced Analytics
+
 - **Cross-Vault Analysis**: Analytics across multiple vaults
 - **Temporal Analysis**: Track changes and trends over time
 - **Usage Analytics**: Track tool usage patterns and optimization
 - **Predictive Insights**: Predict user needs and suggest actions
 
 ### Enhanced Metadata
+
 - **Content Analysis**: Deeper content understanding and classification
 - **Relationship Inference**: Infer implicit relationships between notes
 - **Quality Prediction**: Predict content quality and improvement needs

@@ -10,7 +10,7 @@ This design integrates seamlessly with existing search infrastructure while addi
 
 ### High-Level Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Enhanced MCP Tools                           │
 ├─────────────────────────────────────────────────────────────────┤
@@ -297,7 +297,7 @@ class LearnedPatterns:
 
 ### 1. Context-Enhanced Search Flow
 
-```
+```text
 User Query → Session Context Retrieval
     ↓
 Query Enhancement with Context:
@@ -331,7 +331,7 @@ Context Update and Learning:
 
 ### 2. Learning and Adaptation Flow
 
-```
+```text
 User Interaction → Interaction Capture
     ↓
 Pattern Analysis:

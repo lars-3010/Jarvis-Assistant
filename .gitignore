@@ -30,6 +30,7 @@ datasets/
 dataset_cache/
 
 .kiro/specs/dataset-generation-tool/
+.kiro/specs/done/dataset-generation-tool/
 
 # macOS system files
 .DS_Store
