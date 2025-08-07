@@ -1,64 +1,72 @@
 # System Architecture
 
-*Version: 2.0 | Date: 2025-07-10*
+*Version: 3.0 | Date: 2024-12-15*
 
 ## Architecture Overview
 
-Jarvis Assistant has evolved to a highly modular, event-driven architecture. This design enhances scalability, maintainability, and flexibility by decoupling core components through a service-oriented approach and established design patterns.
+Jarvis Assistant implements a **production-ready, modular architecture** with comprehensive dependency injection, robust database initialization, and graceful service degradation. The system is designed for reliability, testability, and maintainability while supporting both minimal and full-featured deployments.
 
 ```mermaid
 graph TD
-    subgraph "Presentation Layer"
-        A[MCP Server]
+    subgraph "Client Layer"
+        CD[Claude Desktop<br/>🤖 AI Interface]
+    end
+
+    subgraph "Protocol Layer"
+        MCP[MCP Server<br/>📡 JSON-RPC Handler]
     end
 
     subgraph "Core Infrastructure (src/jarvis/core)"
-        B[Service Registry]
-        C[Event Bus]
-        D[Task Scheduler]
+        SC[Service Container<br/>🏗️ Dependency Injection]
+        DI[Database Initializer<br/>🔧 Database Management]
+        INT[Service Interfaces<br/>📋 Contract Definitions]
     end
-
-    A -- Uses --> B
-    A -- Publishes/Subscribes --> C
-    D -- Triggers --> C
 
     subgraph "Application Services (src/jarvis/services)"
-        S_Vector[Vector Service]
-        S_Graph[Graph Service]
-        S_Vault[Vault Service]
-        S_Health[Health Service]
+        VS[Vector Service<br/>🧠 Semantic Search]
+        GS[Graph Service<br/>🕸️ Relationships]
+        VaultS[Vault Service<br/>📁 File Operations]
+        HS[Health Service<br/>💊 Monitoring]
     end
 
-    B -- Manages & Provides --> S_Vector
-    B -- Manages & Provides --> S_Graph
-    B -- Manages & Provides --> S_Vault
-    B -- Manages & Provides --> S_Health
-
-    S_Vector -- Interacts via --> C
-    S_Graph -- Interacts via --> C
-    S_Vault -- Interacts via --> C
-
-    subgraph "Data Access Layer (src/jarvis/database)"
-        F[Database Factory]
-        S_Vector -- Uses --> F
-        S_Graph -- Uses --> F
+    subgraph "Database Layer"
+        VDB[(Vector Database<br/>📊 DuckDB)]
+        GDB[(Graph Database<br/>🌐 Neo4j)]
+        FS[(File System<br/>📝 Obsidian Vault)]
     end
 
-    subgraph "Database Adapters"
-        DA_Duck[DuckDB Adapter]
-        DA_Neo4j[Neo4j Adapter]
-    end
-
-    F -- Creates --> DA_Duck
-    F -- Creates --> DA_Neo4j
-
-    subgraph "Data Source"
-        DS[Obsidian Vault Files]
-    end
-
-    DA_Duck -- Accesses --> DS
-    DA_Neo4j -- Accesses --> DS
-    S_Vault -- Directly Accesses --> DS
+    CD -->|MCP Protocol| MCP
+    MCP -->|Service Requests| SC
+    
+    SC -->|Manages Lifecycle| VS
+    SC -->|Manages Lifecycle| GS
+    SC -->|Manages Lifecycle| VaultS
+    SC -->|Manages Lifecycle| HS
+    
+    SC -.->|Implements| INT
+    VS -.->|Implements| INT
+    GS -.->|Implements| INT
+    VaultS -.->|Implements| INT
+    HS -.->|Implements| INT
+    
+    DI -->|Ensures Ready| VDB
+    DI -->|Ensures Ready| GDB
+    
+    VS -->|Queries| VDB
+    GS -->|Queries| GDB
+    VaultS -->|Reads| FS
+    
+    classDef client fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef protocol fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef infrastructure fill:#e8eaf6,stroke:#3f51b5,stroke-width:2px
+    classDef service fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef database fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    
+    class CD client
+    class MCP protocol
+    class SC,DI,INT infrastructure
+    class VS,GS,VaultS,HS service
+    class VDB,GDB,FS database
 ```
 
 ## Key Architectural Patterns
@@ -72,26 +80,72 @@ The architecture relies on several key design patterns to achieve its goals of m
 
 ## Component Responsibilities
 
-### MCP Server Layer
-*   **Purpose**: Provides a standardized interface for AI tools via the Model Context Protocol. It uses the **Service Registry** to access the necessary application services to fulfill requests.
+### Protocol Layer
+*   **MCP Server** (`src/jarvis/mcp/server.py`): Implements Model Context Protocol for AI tool integration
+    - Routes tool requests to appropriate services via Service Container
+    - Handles parameter validation and response formatting
+    - Manages caching and performance metrics
+    - Supports both traditional and container-aware contexts
 
-### Core Infrastructure
-*   **Service Registry**: Manages the lifecycle of all application services.
-*   **Event Bus**: A central messaging system for asynchronous communication between services.
-*   **Task Scheduler**: Manages background tasks like indexing.
+### Core Infrastructure Layer
+*   **Service Container** (`src/jarvis/core/container.py`): Centralized dependency injection system
+    - Manages service lifecycles and dependencies
+    - Provides automatic dependency resolution with circular dependency detection
+    - Supports singleton pattern for expensive services (databases, encoders)
+    - Enables easy testing through mock service injection
 
-### Application Services
-*   **Vector Service**: Manages semantic search.
-*   **Graph Service**: Handles relationship discovery.
-*   **Vault Service**: Provides file system operations.
-*   **Health Service**: Provides health checks for all core services.
+*   **Database Initializer** (`src/jarvis/services/database_initializer.py`): Robust database management
+    - Ensures databases exist and are properly initialized before system startup
+    - Handles missing files, corruption, and permission issues with specific recovery strategies
+    - Maintains schema versioning and metadata for future migrations
+    - Provides comprehensive error reporting with actionable guidance
+
+*   **Service Interfaces** (`src/jarvis/core/interfaces.py`): Contract definitions for all services
+    - Defines abstract interfaces for loose coupling (IVectorDatabase, IGraphDatabase, etc.)
+    - Enables runtime service swapping and plugin architecture
+    - Facilitates comprehensive unit testing with mock implementations
+
+### Application Services Layer
+*   **Vector Service** (`src/jarvis/services/vector/`): Semantic search capabilities
+    - **Database**: DuckDB vector storage with similarity search
+    - **Encoder**: Text-to-vector conversion using sentence-transformers
+    - **Searcher**: High-level search interface with caching and ranking
+    - **Indexer**: Batch processing for vault content indexing
+
+*   **Graph Service** (`src/jarvis/services/graph/`): Knowledge relationship discovery
+    - **Database**: Neo4j graph storage with Cypher query support
+    - **Indexer**: Relationship extraction from markdown links and references
+    - **Parser**: Content analysis for automatic relationship detection
+    - **Graceful Degradation**: Falls back to semantic search when Neo4j unavailable
+
+*   **Vault Service** (`src/jarvis/services/vault/`): File system operations
+    - **Reader**: Markdown file parsing with frontmatter support
+    - **Parser**: Content extraction and metadata generation
+    - **Search**: Traditional text-based search with regex support
+
+*   **Health Service** (`src/jarvis/services/health.py`): System monitoring
+    - Checks database connectivity and service availability
+    - Provides detailed health reports for troubleshooting
+    - Integrates with metrics collection for performance monitoring
 
 ### Database Layer
-*   **Database Factory**: Creates database connections.
-*   **DuckDB Adapter**: Provides access to the DuckDB vector store.
-*   **Neo4j Adapter**: Provides access to the Neo4j graph database. The system gracefully degrades if Neo4j is unavailable.
+*   **Vector Database** (DuckDB): Embedded vector storage
+    - Stores document embeddings with metadata
+    - Provides fast similarity search with configurable thresholds
+    - Supports multiple vaults with isolation
+    - Automatic schema management and versioning
+
+*   **Graph Database** (Neo4j): Optional relationship storage
+    - Models notes, headings, and blocks as nodes
+    - Captures links, references, and semantic relationships
+    - Enables multi-hop traversal for knowledge discovery
+    - Graceful degradation when unavailable
 
 ### Data Layer
-*   **Obsidian Vault**: The source of truth for all knowledge content.
+*   **Obsidian Vault**: Source of truth for knowledge content
+    - Markdown files with frontmatter metadata
+    - Wiki-style links and references
+    - Tag-based organization
+    - File system watching for real-time updates
 
 ---

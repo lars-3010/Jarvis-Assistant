@@ -184,6 +184,99 @@ export JARVIS_USE_DEPENDENCY_INJECTION=true
 uv run jarvis mcp --vault /path/to/vault
 ```
 
+## Service Lifecycle Management
+
+### Lifecycle Phases
+
+The Service Container manages services through distinct lifecycle phases:
+
+```python
+# 1. Registration Phase
+container.register(IVectorDatabase, VectorDatabase, singleton=True)
+
+# 2. Resolution Phase (lazy instantiation)
+service = container.get(IVectorDatabase)  # Created on first request
+
+# 3. Dependency Injection Phase
+# Constructor dependencies automatically resolved:
+# VectorSearcher(database: IVectorDatabase, encoder: IVectorEncoder)
+
+# 4. Singleton Management Phase
+# Subsequent requests return same instance for singletons
+
+# 5. Disposal Phase
+container.dispose()  # Cleanup all resources
+```
+
+### Factory Pattern Integration
+
+Database services use factory pattern for complex initialization:
+
+```python
+def _register_vector_database(self) -> None:
+    """Register vector database using factory pattern."""
+    try:
+        from jarvis.database.factory import DatabaseFactory, VectorDatabaseConfig
+        
+        def vector_db_factory():
+            config = VectorDatabaseConfig.from_settings(self.settings)
+            return DatabaseFactory.create_vector_database(config)
+        
+        self.register(IVectorDatabase, VectorDatabase, factory=vector_db_factory, singleton=True)
+        logger.info(f"Vector database factory registered: {self.settings.vector_db_backend}")
+    except Exception as e:
+        logger.warning(f"Failed to register vector database factory: {e}")
+        # Fallback to direct registration
+        from jarvis.services.vector.database import VectorDatabase
+        self.register(IVectorDatabase, VectorDatabase, singleton=True)
+```
+
+### Circular Dependency Detection
+
+The container prevents circular dependencies through build tracking:
+
+```python
+def get(self, interface: Type[T]) -> T:
+    # Check if we're already building this service (circular dependency)
+    if interface in self._building:
+        logger.error(f"❌ Circular dependency detected for {interface.__name__}")
+        raise ConfigurationError(f"Circular dependency detected for {interface.__name__}")
+    
+    # Mark as building
+    self._building.add(interface)
+    try:
+        # Create instance with dependency injection
+        instance = self._create_instance(registration.implementation)
+        return instance
+    finally:
+        # Remove from building set
+        self._building.discard(interface)
+```
+
+### Resource Cleanup
+
+Services with resources are automatically cleaned up:
+
+```python
+def dispose(self) -> None:
+    """Dispose of all services and clean up resources."""
+    logger.info("Disposing service container")
+    
+    # Close singleton services that have a close method
+    for interface, instance in self._singletons.items():
+        if hasattr(instance, 'close'):
+            try:
+                instance.close()
+                logger.debug(f"Closed service {interface.__name__}")
+            except Exception as e:
+                logger.error(f"Error closing service {interface.__name__}: {e}")
+    
+    # Clear all registrations and instances
+    self._singletons.clear()
+    self._registrations.clear()
+    self._building.clear()
+```
+
 ## Next Phase Preview
 
 **Phase 2** will implement:

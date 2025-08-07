@@ -1,6 +1,6 @@
 # Semantic Search Design
 
-*Vector search architecture and embedding implementation*
+## Vector Search Architecture and Embedding Implementation
 
 ## Overview
 

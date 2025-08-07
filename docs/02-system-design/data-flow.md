@@ -1,6 +1,6 @@
 # Data Flow Architecture
 
-*Understanding the request-to-response journey through Jarvis Assistant*
+## Understanding the Request-to-Response Journey Through Jarvis Assistant
 
 ## Overview
 

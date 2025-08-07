@@ -1,6 +1,6 @@
 # Component Interaction
 
-*How MCP server, databases, and services work together*
+## How MCP Server, Databases, and Services Work Together
 
 ## Architectural Overview
 
@@ -77,6 +77,89 @@ container.register(IVectorDatabase, DebugVectorDatabase)
 ```
 
 **Implementation Reference**: For detailed DI implementation, see `dependency-injection-implementation.md`.
+
+## System Architecture Overview
+
+### Service Dependency Graph
+
+```mermaid
+graph TB
+    subgraph "MCP Layer"
+        MCP[MCP Server]
+        Tools[MCP Tools]
+    end
+    
+    subgraph "Service Container"
+        SC[Service Container<br/>🏗️ Dependency Injection]
+        
+        subgraph "Core Services"
+            VS[Vector Searcher<br/>IVectorSearcher]
+            VE[Vector Encoder<br/>IVectorEncoder]
+            VDB[Vector Database<br/>IVectorDatabase]
+            GDB[Graph Database<br/>IGraphDatabase]
+            VR[Vault Reader<br/>IVaultReader]
+            HC[Health Checker<br/>IHealthChecker]
+            M[Metrics<br/>IMetrics]
+        end
+    end
+    
+    subgraph "External Dependencies"
+        DuckDB[(DuckDB)]
+        Neo4j[(Neo4j)]
+        FS[(File System)]
+    end
+    
+    MCP --> SC
+    Tools --> SC
+    
+    SC -.->|manages| VS
+    SC -.->|manages| VE
+    SC -.->|manages| VDB
+    SC -.->|manages| GDB
+    SC -.->|manages| VR
+    SC -.->|manages| HC
+    SC -.->|manages| M
+    
+    VS -->|depends on| VE
+    VS -->|depends on| VDB
+    VDB -->|connects to| DuckDB
+    GDB -->|connects to| Neo4j
+    VR -->|reads from| FS
+    
+    classDef mcp fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef container fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef service fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
+    classDef external fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    
+    class MCP,Tools mcp
+    class SC container
+    class VS,VE,VDB,GDB,VR,HC,M service
+    class DuckDB,Neo4j,FS external
+```
+
+### Traditional vs Container-Aware Architecture
+
+```mermaid
+graph LR
+    subgraph "Traditional Architecture"
+        T1[MCP Server] --> T2[Direct Service Creation]
+        T2 --> T3[Hard-coded Dependencies]
+        T3 --> T4[Manual Resource Management]
+    end
+    
+    subgraph "Container-Aware Architecture"
+        C1[MCP Server] --> C2[Service Container]
+        C2 --> C3[Automatic Dependency Injection]
+        C3 --> C4[Lifecycle Management]
+        C4 --> C5[Interface-based Design]
+    end
+    
+    classDef traditional fill:#ffebee,stroke:#c62828,stroke-width:2px
+    classDef modern fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
+    
+    class T1,T2,T3,T4 traditional
+    class C1,C2,C3,C4,C5 modern
+```
 
 ## System Architecture Overview
 
@@ -393,47 +476,78 @@ class CacheManager:
 
 ## Configuration and Dependency Management
 
-### Service Configuration
-```python
-@dataclass
-class ServiceConfig:
-    vector_config: VectorConfig
-    graph_config: GraphConfig
-    vault_config: VaultConfig
-    cache_config: CacheConfig
-    
-    @classmethod
-    def from_env(cls) -> "ServiceConfig":
-        return cls(
-            vector_config=VectorConfig.from_env(),
-            graph_config=GraphConfig.from_env(),
-            vault_config=VaultConfig.from_env(),
-            cache_config=CacheConfig.from_env()
-        )
-```
+### Service Container Implementation
 
-### Dependency Injection
+The actual service container implementation provides comprehensive dependency management:
+
 ```python
 class ServiceContainer:
-    def __init__(self, config: ServiceConfig):
-        self.config = config
-        self._services = {}
+    def __init__(self, settings: JarvisSettings):
+        self.settings = settings
+        self._services: Dict[Type, Any] = {}
+        self._singletons: Dict[Type, Any] = {}
+        self._registrations: Dict[Type, 'ServiceRegistration'] = {}
+        self._building: set = set()  # Prevent circular dependencies
     
-    def get_vector_service(self) -> VectorSearchService:
-        if "vector" not in self._services:
-            self._services["vector"] = VectorSearchService(
-                self.config.vector_config,
-                self.get_cache_manager()
-            )
-        return self._services["vector"]
+    def register(
+        self,
+        interface: Type[T],
+        implementation: Type[T],
+        singleton: bool = True,
+        factory: Optional[Callable[[], T]] = None
+    ) -> None:
+        """Register a service with automatic dependency resolution."""
+        self._registrations[interface] = ServiceRegistration(
+            interface=interface,
+            implementation=implementation,
+            singleton=singleton,
+            factory=factory
+        )
     
-    def get_graph_service(self) -> GraphSearchService:
-        if "graph" not in self._services:
-            self._services["graph"] = GraphSearchService(
-                self.config.graph_config,
-                self.get_cache_manager()
-            )
-        return self._services["graph"]
+    def get(self, interface: Type[T]) -> T:
+        """Get service instance with automatic dependency injection."""
+        # Check for circular dependencies
+        if interface in self._building:
+            raise ConfigurationError(f"Circular dependency detected for {interface.__name__}")
+        
+        # Return existing singleton
+        if interface in self._singletons:
+            return self._singletons[interface]
+        
+        # Create new instance with dependency injection
+        self._building.add(interface)
+        try:
+            instance = self._create_instance(registration.implementation)
+            if registration.singleton:
+                self._singletons[interface] = instance
+            return instance
+        finally:
+            self._building.discard(interface)
+```
+
+### Database Initialization Integration
+
+The service container integrates with database initialization:
+
+```python
+def configure_default_services(self) -> None:
+    """Configure services with database initialization."""
+    # Initialize database before registering services
+    database_path = self.settings.get_vector_db_path()
+    initializer = DatabaseInitializer(database_path, self.settings)
+    
+    if not initializer.ensure_database_exists():
+        logger.error("Database initialization failed")
+        raise ConfigurationError("Cannot initialize vector database")
+    
+    # Register database services using factory pattern
+    def vector_db_factory():
+        config = VectorDatabaseConfig.from_settings(self.settings)
+        return DatabaseFactory.create_vector_database(config)
+    
+    self.register(IVectorDatabase, VectorDatabase, factory=vector_db_factory, singleton=True)
+    self.register(IVectorEncoder, VectorEncoder, singleton=True)
+    self.register(IVectorSearcher, VectorSearcher, singleton=True)
 ```
 
 ## Performance Optimization

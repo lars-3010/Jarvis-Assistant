@@ -1,6 +1,6 @@
 # Neo4j Schema Design
 
-*Graph database structure and relationships for knowledge discovery*
+## Graph Database Structure and Relationships for Knowledge Discovery
 
 ## Overview
 

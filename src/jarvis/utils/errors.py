@@ -2,9 +2,31 @@
 Custom exception classes for Jarvis Assistant.
 """
 
+from typing import List, Optional, Dict, Any
+
+
 class JarvisError(Exception):
     """Base exception for all Jarvis Assistant errors."""
-    pass
+    
+    def __init__(
+        self, 
+        message: str, 
+        error_code: Optional[str] = None,
+        suggestions: Optional[List[str]] = None,
+        context: Optional[Dict[str, Any]] = None
+    ):
+        """Initialize Jarvis error with enhanced information.
+        
+        Args:
+            message: Human-readable error message
+            error_code: Machine-readable error code
+            suggestions: List of suggested remediation steps
+            context: Additional context information for debugging
+        """
+        super().__init__(message)
+        self.error_code = error_code or self.__class__.__name__.upper()
+        self.suggestions = suggestions or []
+        self.context = context or {}
 
 
 class ConfigurationError(JarvisError):
@@ -34,4 +56,35 @@ class ToolExecutionError(JarvisError):
 
 class PluginError(JarvisError):
     """Raised when there's a plugin-related error."""
+    pass
+
+
+# Database-specific errors
+class DatabaseError(ServiceError):
+    """Base exception for database-related errors."""
+    pass
+
+
+class DatabaseInitializationError(DatabaseError):
+    """Raised when database initialization fails."""
+    pass
+
+
+class DatabasePermissionError(DatabaseError):
+    """Raised when database access is denied due to permissions."""
+    pass
+
+
+class DatabaseCorruptionError(DatabaseError):
+    """Raised when database corruption is detected."""
+    pass
+
+
+class DatabaseConnectionError(DatabaseError):
+    """Raised when database connection fails."""
+    pass
+
+
+class DiskSpaceError(DatabaseError):
+    """Raised when insufficient disk space is available."""
     pass

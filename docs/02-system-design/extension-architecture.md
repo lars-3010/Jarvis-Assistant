@@ -1,350 +1,604 @@
-# Extension Architecture Decision Record
+# Extension Architecture
 
-*Created: Phase 0 - Extension Foundation*  
-*Status: Implemented*  
-*Decision Date: 2025-07-13*
+## Plugin-Based Extension System Design
 
-## Context
+**Status**: 📋 Planned (Foundation Ready)  
+**Priority**: High  
+**Implementation**: Phase 2 Development
 
-Jarvis Assistant needs to evolve from a powerful search tool into a comprehensive AI knowledge assistant. The key challenge is implementing advanced AI capabilities (LLM integration, GraphRAG, workflow orchestration) while maintaining the reliability and performance that users expect from the existing production-ready MCP tools.
+## Overview
 
-## Decision
+The Extension Architecture provides a **plugin-based system** that enables optional advanced capabilities while preserving core system reliability. This design follows the **Progressive Enhancement** principle, where the core system remains fully functional while extensions add specialized features.
 
-We will implement a **plugin-based extension architecture** that enables truly optional AI capabilities without affecting core system functionality.
+### Architectural Principles
 
-## Architecture Overview
+- **True Optionality**: Extensions are completely separate from core functionality
+- **Zero Performance Impact**: Core system performance unchanged when extensions disabled
+- **Graceful Degradation**: Extension failures don't affect core system stability
+- **Progressive Enhancement**: Users can enable specific features based on needs
+- **Resource Efficiency**: AI models only loaded when extensions are enabled
 
-### Core Principles
+## Extension System Architecture
 
-1. **Local-First AI**: All LLM processing happens locally to maintain privacy
-2. **True Optionality**: AI capabilities are completely separate extensions, not core integrations
-3. **Zero Performance Impact**: Extensions only loaded when explicitly enabled
-4. **Backwards Compatibility**: Existing tools continue to work unchanged
-5. **Graceful Degradation**: Extension failures cannot crash the core system
-
-### System Design
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Claude Desktop (MCP Client)                   │
-└─────────────────┬───────────────────────────────────────────────┘
-                  │ MCP Protocol
-┌─────────────────▼───────────────────────────────────────────────┐
-│                     MCP Server (Enhanced)                       │
-│  ┌─────────────┐  ┌──────────────────────────────────────────┐ │
-│  │ Core Tools  │  │        Extension Manager                 │ │
-│  │ - search-*  │  │  ┌─────────────┐  ┌─────────────────────┐│ │
-│  │ - read-note │  │  │ Extension   │  │ Extension Registry  ││ │
-│  │ - list-*    │  │  │ Loader      │  │ & Health Monitor    ││ │
-│  │ - health    │  │  └─────────────┘  └─────────────────────┘│ │
-│  └─────────────┘  └──────────────────────────────────────────┘ │
-└─────────────────┬───────────────────────────────────────────────┘
-                  │ Service Container (Dependency Injection)
-┌─────────────────▼───────────────────────────────────────────────┐
-│                        Core Services                             │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌────────────┐│
-│  │Vector Search│ │Vault Reader │ │Graph Database│ │Health Check││
-│  └─────────────┘ └─────────────┘ └─────────────┘ └────────────┘│
-└─────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────┐
-│                     Extensions (Optional)                       │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │                    AI Extension                             ││
-│  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────────────────┐││
-│  │  │ LLM Service │ │ GraphRAG    │ │ Workflow Orchestration  │││
-│  │  │ (Phase 1)   │ │ (Phase 2)   │ │ (Phase 3)               │││
-│  │  └─────────────┘ └─────────────┘ └─────────────────────────┘││
-│  │  Tools: ai-test, llm-summarize, graphrag-search, workflow-* ││
-│  └─────────────────────────────────────────────────────────────┘│
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │                  Custom Extensions                          ││
-│  │  (Third-party extensions follow same architecture)          ││
-│  └─────────────────────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────────────┘
-```
-
-## Implementation Details
-
-### Extension Lifecycle
-
-```python
-# Extension loading sequence
-1. ExtensionLoader.discover_extensions()    # Find available extensions
-2. ExtensionLoader.load_extension()         # Import and instantiate
-3. IExtension.initialize(container)         # Provide dependencies
-4. ExtensionRegistry.register_extension()   # Add to registry
-5. ExtensionManager.get_all_tools()        # Collect MCP tools
-
-# Tool execution flow
-1. MCP Server receives tool call
-2. ExtensionRegistry.find_tool_extension()  # Route to extension
-3. IExtension.handle_tool_call()           # Execute in extension
-4. Return results to MCP client
-```
-
-### Key Interfaces
-
-#### IExtension (Core Interface)
-```python
-class IExtension(ABC):
-    @abstractmethod
-    def get_metadata(self) -> ExtensionMetadata
+```mermaid
+graph TB
+    subgraph "Core System (Always Available)"
+        MCP[MCP Server]
+        SC[Service Container]
+        CS[Core Services<br/>Vector, Graph, Vault]
+        CT[Core Tools<br/>8 Production Tools]
+    end
     
-    @abstractmethod
-    async def initialize(self, container: ServiceContainer) -> None
+    subgraph "Extension Infrastructure"
+        EM[Extension Manager<br/>🔌 Plugin Orchestrator]
+        EL[Extension Loader<br/>📦 Dynamic Loading]
+        ER[Extension Registry<br/>📋 Service Discovery]
+        EV[Extension Validator<br/>✅ Safety Checks]
+    end
     
-    @abstractmethod
-    async def shutdown(self) -> None
+    subgraph "Extension Types"
+        subgraph "AI Extensions"
+            LLM[LLM Service<br/>🤖 Local Language Models]
+            GR[GraphRAG<br/>🕸️ Graph-Enhanced RAG]
+            WF[AI Workflows<br/>⚡ Automated Processes]
+        end
+        
+        subgraph "Analytics Extensions"
+            VA[Vault Analytics<br/>📊 Advanced Metrics]
+            QA[Quality Assessment<br/>🎯 Content Analysis]
+            TR[Trend Analysis<br/>📈 Temporal Insights]
+        end
+        
+        subgraph "Integration Extensions"
+            API[External APIs<br/>🌐 Third-party Services]
+            EXP[Export Tools<br/>📤 Data Export]
+            SYNC[Sync Services<br/>🔄 Multi-device Sync]
+        end
+    end
     
-    @abstractmethod
-    def get_tools(self) -> List[MCPTool]
+    MCP --> EM
+    SC --> EM
+    EM --> EL
+    EM --> ER
+    EM --> EV
     
-    @abstractmethod
-    def get_health_status(self) -> ExtensionHealth
+    EL --> LLM
+    EL --> GR
+    EL --> WF
+    EL --> VA
+    EL --> QA
+    EL --> TR
+    EL --> API
+    EL --> EXP
+    EL --> SYNC
     
-    @abstractmethod
-    async def handle_tool_call(self, tool_name: str, arguments: Dict[str, Any]) -> List[types.TextContent]
+    CS -.->|Optional Enhancement| LLM
+    CS -.->|Optional Enhancement| VA
+    
+    classDef core fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    classDef infrastructure fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef ai fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef analytics fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef integration fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    
+    class MCP,SC,CS,CT core
+    class EM,EL,ER,EV infrastructure
+    class LLM,GR,WF ai
+    class VA,QA,TR analytics
+    class API,EXP,SYNC integration
 ```
 
-#### ExtensionManager (Orchestration)
+## Extension Manager Implementation
+
+### Core Extension Manager
+
 ```python
 class ExtensionManager:
-    async def initialize() -> None              # Load auto-load extensions
-    async def load_extension(name) -> IExtension # Load specific extension
-    async def unload_extension(name) -> None    # Unload extension
-    def get_all_tools() -> List[MCPTool]       # Collect tools from all extensions
-    async def handle_tool_call() -> Any        # Route tool calls
-    async def check_health() -> Dict           # System health status
+    """Central orchestrator for all extensions."""
+    
+    def __init__(self, container: ServiceContainer, settings: JarvisSettings):
+        self.container = container
+        self.settings = settings
+        self.registry = ExtensionRegistry()
+        self.loader = ExtensionLoader(container)
+        self.validator = ExtensionValidator()
+        self.loaded_extensions: Dict[str, Extension] = {}
+    
+    async def initialize(self) -> None:
+        """Initialize extension system."""
+        if not self.settings.extensions_enabled:
+            logger.info("Extensions disabled, skipping initialization")
+            return
+        
+        # Discover available extensions
+        available_extensions = await self.registry.discover_extensions()
+        
+        # Load enabled extensions
+        for ext_name in self.settings.extensions_auto_load:
+            if ext_name in available_extensions:
+                await self.load_extension(ext_name)
+    
+    async def load_extension(self, extension_name: str) -> bool:
+        """Load and initialize a specific extension."""
+        try:
+            # Validate extension
+            extension_info = await self.registry.get_extension_info(extension_name)
+            if not await self.validator.validate_extension(extension_info):
+                logger.error(f"Extension validation failed: {extension_name}")
+                return False
+            
+            # Load extension
+            extension = await self.loader.load_extension(extension_name)
+            
+            # Initialize extension
+            await extension.initialize(self.container)
+            
+            # Register extension services
+            await self._register_extension_services(extension)
+            
+            # Register extension tools
+            await self._register_extension_tools(extension)
+            
+            self.loaded_extensions[extension_name] = extension
+            logger.info(f"Extension loaded successfully: {extension_name}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to load extension {extension_name}: {e}")
+            return False
+    
+    async def unload_extension(self, extension_name: str) -> bool:
+        """Unload an extension safely."""
+        if extension_name not in self.loaded_extensions:
+            return False
+        
+        try:
+            extension = self.loaded_extensions[extension_name]
+            
+            # Cleanup extension resources
+            await extension.cleanup()
+            
+            # Unregister services
+            await self._unregister_extension_services(extension)
+            
+            # Unregister tools
+            await self._unregister_extension_tools(extension)
+            
+            del self.loaded_extensions[extension_name]
+            logger.info(f"Extension unloaded: {extension_name}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to unload extension {extension_name}: {e}")
+            return False
 ```
 
-### Configuration Architecture
-
-Extensions are configured through the existing `JarvisSettings` system:
+### Extension Base Class
 
 ```python
-# Core extension settings
-extensions_enabled: bool = False
-extensions_auto_load: List[str] = []
-extensions_directory: str = "src/jarvis/extensions"
-extensions_config: Dict[str, Any] = {}
-
-# AI extension specific settings
-ai_extension_enabled: bool = False
-ai_llm_provider: str = "ollama"
-ai_llm_models: List[str] = ["llama2:7b"]
-ai_max_memory_gb: int = 8
-ai_timeout_seconds: int = 30
-ai_graphrag_enabled: bool = False
-ai_workflows_enabled: bool = False
+class Extension(ABC):
+    """Base class for all extensions."""
+    
+    def __init__(self, name: str, version: str):
+        self.name = name
+        self.version = version
+        self.container: Optional[ServiceContainer] = None
+        self.tools: List[ExtensionTool] = []
+        self.services: List[ExtensionService] = []
+    
+    @abstractmethod
+    async def initialize(self, container: ServiceContainer) -> None:
+        """Initialize the extension with service container."""
+        pass
+    
+    @abstractmethod
+    async def cleanup(self) -> None:
+        """Cleanup extension resources."""
+        pass
+    
+    @abstractmethod
+    def get_dependencies(self) -> List[str]:
+        """Return list of required dependencies."""
+        pass
+    
+    @abstractmethod
+    def get_tools(self) -> List[ExtensionTool]:
+        """Return list of MCP tools provided by this extension."""
+        pass
+    
+    @abstractmethod
+    def get_services(self) -> List[ExtensionService]:
+        """Return list of services provided by this extension."""
+        pass
+    
+    def is_healthy(self) -> bool:
+        """Check if extension is healthy."""
+        return True
 ```
 
-### Directory Structure
+## AI Extension Implementation
 
+### LLM Service Extension
+
+```python
+class LLMExtension(Extension):
+    """Local Language Model extension for advanced AI capabilities."""
+    
+    def __init__(self):
+        super().__init__("llm", "1.0.0")
+        self.llm_service: Optional[LLMService] = None
+    
+    async def initialize(self, container: ServiceContainer) -> None:
+        """Initialize LLM service."""
+        self.container = container
+        
+        # Initialize LLM service based on configuration
+        llm_provider = container.settings.ai_llm_provider
+        
+        if llm_provider == "ollama":
+            self.llm_service = OllamaLLMService(container.settings)
+        elif llm_provider == "llamacpp":
+            self.llm_service = LlamaCppLLMService(container.settings)
+        else:
+            raise ExtensionError(f"Unsupported LLM provider: {llm_provider}")
+        
+        # Register LLM service
+        container.register_instance(ILLMService, self.llm_service)
+        
+        # Initialize service
+        await self.llm_service.initialize()
+    
+    def get_tools(self) -> List[ExtensionTool]:
+        """Return LLM-powered tools."""
+        return [
+            ExtensionTool(
+                name="generate-summary",
+                description="Generate AI summary of note content",
+                handler=self._handle_generate_summary
+            ),
+            ExtensionTool(
+                name="answer-question",
+                description="Answer questions about vault content using AI",
+                handler=self._handle_answer_question
+            ),
+            ExtensionTool(
+                name="suggest-connections",
+                description="AI-powered connection suggestions",
+                handler=self._handle_suggest_connections
+            )
+        ]
+    
+    async def _handle_generate_summary(self, args: Dict[str, Any]) -> List[TextContent]:
+        """Generate AI summary of content."""
+        content = args.get("content", "")
+        max_length = args.get("max_length", 200)
+        
+        if not self.llm_service:
+            return [TextContent(type="text", text="LLM service not available")]
+        
+        summary = await self.llm_service.generate_summary(content, max_length)
+        
+        return [TextContent(
+            type="text",
+            text=f"AI Summary:\n\n{summary}"
+        )]
 ```
-src/jarvis/extensions/
-├── __init__.py              # Package exports
-├── interfaces.py            # Core interfaces (IExtension, etc.)
-├── loader.py               # Dynamic extension loading
-├── registry.py             # Extension state management
-├── manager.py              # High-level orchestration
-├── validation.py           # Configuration validation
-├── errors.py              # Extension-specific exceptions
-└── ai/                    # AI Extension Package
-    ├── main.py            # AIExtension implementation
-    ├── llm/               # Phase 1: LLM integration
-    ├── graphrag/          # Phase 2: GraphRAG implementation
-    ├── workflows/         # Phase 3: Workflow orchestration
-    └── tools/             # AI-specific MCP tools
+
+### GraphRAG Extension
+
+```python
+class GraphRAGExtension(Extension):
+    """Graph-enhanced Retrieval Augmented Generation."""
+    
+    def __init__(self):
+        super().__init__("graphrag", "1.0.0")
+        self.graph_rag_service: Optional[GraphRAGService] = None
+    
+    async def initialize(self, container: ServiceContainer) -> None:
+        """Initialize GraphRAG service."""
+        self.container = container
+        
+        # Get required services
+        vector_searcher = container.get(IVectorSearcher)
+        graph_database = container.get(IGraphDatabase)
+        llm_service = container.get(ILLMService)  # Requires LLM extension
+        
+        # Initialize GraphRAG service
+        self.graph_rag_service = GraphRAGService(
+            vector_searcher=vector_searcher,
+            graph_database=graph_database,
+            llm_service=llm_service
+        )
+        
+        # Register service
+        container.register_instance(IGraphRAGService, self.graph_rag_service)
+    
+    def get_dependencies(self) -> List[str]:
+        """GraphRAG requires LLM extension."""
+        return ["llm"]
+    
+    def get_tools(self) -> List[ExtensionTool]:
+        """Return GraphRAG tools."""
+        return [
+            ExtensionTool(
+                name="graph-enhanced-search",
+                description="Search with graph context and AI reasoning",
+                handler=self._handle_graph_enhanced_search
+            ),
+            ExtensionTool(
+                name="knowledge-synthesis",
+                description="Synthesize knowledge from multiple connected notes",
+                handler=self._handle_knowledge_synthesis
+            )
+        ]
 ```
 
-## Rationale
+## Extension Configuration
 
-### Why Plugin Architecture?
+### Configuration Schema
 
-1. **Maintainability**: Core functionality remains stable while AI features evolve independently
-2. **Performance**: Resource-intensive AI models only loaded when needed
-3. **Reliability**: Extension failures are isolated from core system
-4. **Flexibility**: Users can enable specific AI features based on needs/hardware
-5. **Development Velocity**: Independent development cycles for AI vs. core features
+```python
+@dataclass
+class ExtensionSettings:
+    """Extension system configuration."""
+    
+    # Core extension settings
+    extensions_enabled: bool = False
+    extensions_auto_load: List[str] = field(default_factory=list)
+    extensions_directory: str = "extensions"
+    
+    # AI extension settings
+    ai_extension_enabled: bool = False
+    ai_llm_provider: str = "ollama"
+    ai_max_memory_gb: int = 4
+    ai_model_cache_dir: str = "models"
+    
+    # Analytics extension settings
+    analytics_extension_enabled: bool = False
+    analytics_cache_ttl: int = 3600
+    analytics_batch_size: int = 100
+    
+    # Integration extension settings
+    integration_extension_enabled: bool = False
+    integration_api_timeout: int = 30
+    integration_retry_attempts: int = 3
+```
 
-### Alternative Approaches Considered
+### Environment Configuration
 
-#### 1. Monolithic Integration ❌
-- **Pros**: Simple, direct integration
-- **Cons**: Tight coupling, affects core stability, all-or-nothing deployment
-- **Rejected**: Would compromise core system reliability
+```bash
+# Core extension system
+export JARVIS_EXTENSIONS_ENABLED=true
+export JARVIS_EXTENSIONS_AUTO_LOAD="ai,analytics"
+export JARVIS_EXTENSIONS_DIRECTORY="./extensions"
 
-#### 2. Microservices Architecture ❌
-- **Pros**: Complete isolation
-- **Cons**: Complex deployment, network overhead, over-engineering for single-user system
-- **Rejected**: Too complex for local-first application
+# AI extension configuration
+export JARVIS_AI_EXTENSION_ENABLED=true
+export JARVIS_AI_LLM_PROVIDER=ollama
+export JARVIS_AI_MAX_MEMORY_GB=8
+export JARVIS_AI_MODEL_CACHE_DIR="./models"
 
-#### 3. Feature Flags Only ❌
-- **Pros**: Simple configuration
-- **Cons**: Still monolithic, no resource isolation, code always loaded
-- **Rejected**: Doesn't solve resource usage or stability concerns
+# Analytics extension configuration
+export JARVIS_ANALYTICS_EXTENSION_ENABLED=true
+export JARVIS_ANALYTICS_CACHE_TTL=3600
+export JARVIS_ANALYTICS_BATCH_SIZE=100
+```
 
-#### 4. Plugin Architecture ✅
-- **Pros**: Optional, isolated, performant, maintainable
-- **Cons**: More complex initial implementation
-- **Selected**: Best balance of benefits for our use case
+## Extension Development Guide
 
-### Design Trade-offs
+### Creating a Custom Extension
 
-#### Complexity vs. Flexibility
-- **Trade-off**: More initial complexity for long-term flexibility
-- **Decision**: Acceptable complexity increase for significant architectural benefits
+```python
+# my_extension.py
+class MyCustomExtension(Extension):
+    """Example custom extension."""
+    
+    def __init__(self):
+        super().__init__("my-custom", "1.0.0")
+        self.my_service: Optional[MyService] = None
+    
+    async def initialize(self, container: ServiceContainer) -> None:
+        """Initialize custom extension."""
+        self.container = container
+        
+        # Initialize custom service
+        self.my_service = MyService(container.settings)
+        
+        # Register service
+        container.register_instance(IMyService, self.my_service)
+    
+    def get_tools(self) -> List[ExtensionTool]:
+        """Return custom tools."""
+        return [
+            ExtensionTool(
+                name="my-custom-tool",
+                description="My custom functionality",
+                handler=self._handle_custom_tool,
+                schema={
+                    "type": "object",
+                    "properties": {
+                        "input": {"type": "string", "description": "Input parameter"}
+                    },
+                    "required": ["input"]
+                }
+            )
+        ]
+    
+    async def _handle_custom_tool(self, args: Dict[str, Any]) -> List[TextContent]:
+        """Handle custom tool execution."""
+        input_value = args.get("input", "")
+        
+        # Custom processing
+        result = await self.my_service.process(input_value)
+        
+        return [TextContent(
+            type="text",
+            text=f"Custom result: {result}"
+        )]
+```
 
-#### Performance vs. Features
-- **Trade-off**: Extension system overhead vs. feature modularity
-- **Decision**: Minimal overhead (lazy loading, optional activation) for maximum modularity
+### Extension Manifest
 
-#### Development Speed vs. Maintainability
-- **Trade-off**: Faster development with monolith vs. sustainable architecture
-- **Decision**: Invest in architecture for long-term development velocity
+```json
+{
+  "name": "my-custom",
+  "version": "1.0.0",
+  "description": "My custom extension for Jarvis Assistant",
+  "author": "Developer Name",
+  "license": "MIT",
+  "dependencies": {
+    "jarvis-core": ">=0.2.0",
+    "python": ">=3.11"
+  },
+  "extension_dependencies": [],
+  "entry_point": "my_extension:MyCustomExtension",
+  "tools": [
+    {
+      "name": "my-custom-tool",
+      "description": "My custom functionality"
+    }
+  ],
+  "services": [
+    {
+      "interface": "IMyService",
+      "implementation": "MyService"
+    }
+  ],
+  "configuration": {
+    "my_custom_setting": {
+      "type": "string",
+      "default": "default_value",
+      "description": "Custom setting description"
+    }
+  }
+}
+```
 
-## Implementation Phases
+## Extension Security & Validation
 
-### Phase 0: Extension Foundation ✅
-- Extension interfaces and lifecycle management
-- Configuration integration
-- AI extension scaffold
-- **Status**: Implemented (2,211 lines of code)
+### Extension Validator
 
-### Phase 1: LLM Integration (Next)
-- Ollama client integration within AI extension
-- Basic generation, summarization, analysis tools
-- Model management and resource monitoring
+```python
+class ExtensionValidator:
+    """Validates extensions for security and compatibility."""
+    
+    async def validate_extension(self, extension_info: ExtensionInfo) -> bool:
+        """Validate extension before loading."""
+        try:
+            # Check manifest format
+            if not self._validate_manifest(extension_info.manifest):
+                return False
+            
+            # Check dependencies
+            if not await self._validate_dependencies(extension_info.dependencies):
+                return False
+            
+            # Check code safety
+            if not await self._validate_code_safety(extension_info.code_path):
+                return False
+            
+            # Check resource limits
+            if not self._validate_resource_limits(extension_info.manifest):
+                return False
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Extension validation failed: {e}")
+            return False
+    
+    def _validate_manifest(self, manifest: Dict[str, Any]) -> bool:
+        """Validate extension manifest."""
+        required_fields = ["name", "version", "description", "entry_point"]
+        
+        for field in required_fields:
+            if field not in manifest:
+                logger.error(f"Missing required field in manifest: {field}")
+                return False
+        
+        return True
+    
+    async def _validate_code_safety(self, code_path: str) -> bool:
+        """Basic code safety checks."""
+        # Check for dangerous imports
+        dangerous_imports = ["os.system", "subprocess", "eval", "exec"]
+        
+        try:
+            with open(code_path, 'r') as f:
+                code_content = f.read()
+            
+            for dangerous in dangerous_imports:
+                if dangerous in code_content:
+                    logger.warning(f"Potentially dangerous code detected: {dangerous}")
+                    # In production, this might return False
+                    # For now, just warn
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Code safety validation failed: {e}")
+            return False
+```
 
-### Phase 2: GraphRAG Implementation
-- Context-aware search combining vector + graph + generation
-- Multi-modal retrieval with intelligent context assembly
-- Source attribution and confidence scoring
+## Extension Performance & Monitoring
 
-### Phase 3: Workflow Orchestration
-- Plugin-based tool chaining mechanisms
-- Workflow templates for common use cases
-- Progressive enhancement toward agent capabilities
+### Extension Metrics
 
-## Success Metrics
+```python
+class ExtensionMetrics:
+    """Metrics collection for extensions."""
+    
+    def __init__(self):
+        self.extension_load_time = Histogram("extension_load_time_seconds", ["extension_name"])
+        self.extension_tool_calls = Counter("extension_tool_calls_total", ["extension_name", "tool_name"])
+        self.extension_errors = Counter("extension_errors_total", ["extension_name", "error_type"])
+        self.extension_memory_usage = Gauge("extension_memory_usage_bytes", ["extension_name"])
+    
+    def record_extension_load(self, extension_name: str, load_time: float):
+        """Record extension load time."""
+        self.extension_load_time.labels(extension_name=extension_name).observe(load_time)
+    
+    def record_tool_call(self, extension_name: str, tool_name: str):
+        """Record extension tool call."""
+        self.extension_tool_calls.labels(
+            extension_name=extension_name,
+            tool_name=tool_name
+        ).inc()
+    
+    def record_error(self, extension_name: str, error_type: str):
+        """Record extension error."""
+        self.extension_errors.labels(
+            extension_name=extension_name,
+            error_type=error_type
+        ).inc()
+```
 
-### Technical Metrics
-- **Zero Performance Impact**: Core system performance unchanged when extensions disabled ✅
-- **Clean Loading**: <2s extension loading time, <1s shutdown time
-- **Reliability**: Extension failures don't crash core system ✅
-- **Resource Efficiency**: <8GB memory for basic AI operations
+## Future Extension Roadmap
 
-### User Experience Metrics
-- **Progressive Complexity**: Users can start with basic features and add AI gradually
-- **Clear Configuration**: Straightforward enable/disable of features ✅
-- **Backwards Compatibility**: Existing workflows continue unchanged ✅
-- **AI Enhancement**: AI features enhance rather than replace existing tools
+### Phase 1: Foundation (Current)
+- ✅ Extension Manager architecture
+- ✅ Base Extension class
+- ✅ Extension Registry
+- 🚧 Extension Loader implementation
 
-### Development Metrics
-- **Independent Development**: AI features developed without affecting core stability ✅
-- **Faster Iteration**: Can develop and test AI capabilities without core system dependencies ✅
-- **Clear Separation**: Extension failures are isolated and debuggable ✅
+### Phase 2: AI Extensions (Next Quarter)
+- 📋 LLM Service extension
+- 📋 GraphRAG extension
+- 📋 AI Workflow extension
+- 📋 Content generation tools
 
-## Security Considerations
+### Phase 3: Analytics Extensions (Q2 2025)
+- 📋 Vault Analytics extension
+- 📋 Quality Assessment extension
+- 📋 Trend Analysis extension
+- 📋 Advanced reporting tools
 
-### Isolation
-- Extensions run in the same process but with controlled access to core services
-- Service container provides controlled dependency injection
-- Extension failures are caught and isolated
-
-### Privacy
-- Local-first approach maintained for all AI operations
-- No external API calls required for core functionality
-- User data never leaves the local system
-
-### Resource Management
-- Memory and CPU limits configurable per extension
-- Resource monitoring and circuit breakers for failing extensions
-- Graceful degradation when resources are exhausted
-
-## Migration Strategy
-
-### Existing Users
-- Extension system is disabled by default (`extensions_enabled: false`)
-- All existing MCP tools continue working unchanged
-- Users can opt-in to extensions without affecting existing workflows
-
-### New Features
-- All new AI capabilities implemented as extensions
-- Core system feature freeze except for critical bugs and performance
-- Clear documentation on extension vs. core functionality
-
-### Future Extensions
-- Third-party developers can create custom extensions
-- Extension development guide and examples provided
-- Extension marketplace potential for future
-
-## Monitoring and Observability
-
-### Health Monitoring
-- Extension health status integrated with existing health checker
-- Individual extension health reports
-- System-wide health aggregation
-
-### Performance Monitoring
-- Extension-specific metrics collection
-- Resource usage tracking per extension
-- Performance impact measurement
-
-### Error Handling
-- Comprehensive error isolation and reporting
-- Extension-specific error codes and messages
-- Graceful fallback mechanisms
-
-## Documentation
-
-### User Documentation
-- Configuration reference updated with extension settings ✅
-- Quick start guides for enabling extensions
-- Troubleshooting guides for common extension issues
-
-### Developer Documentation
-- Extension development guide created ✅
-- API reference for extension interfaces ✅
-- Best practices and patterns ✅
-
-### Architecture Documentation
-- This decision record ✅
-- Component interaction diagrams
-- Integration patterns and examples
-
-## Future Considerations
-
-### Extension Ecosystem
-- Package management for extensions
-- Extension versioning and compatibility
-- Extension marketplace or repository
-
-### Advanced Features
-- Hot-reloading of extensions during development
-- Extension dependency management
-- Cross-extension communication patterns
-
-### Performance Optimizations
-- Extension preloading strategies
-- Resource pooling across extensions
-- Caching and memoization patterns
-
-## Conclusion
-
-The plugin-based extension architecture provides a robust foundation for evolving Jarvis Assistant into a comprehensive AI knowledge assistant while preserving the reliability and performance of the existing system. The implementation successfully:
-
-✅ **Enables Optional AI**: Users can choose which AI features to enable  
-✅ **Preserves Core Stability**: Extension failures don't affect core functionality  
-✅ **Maintains Performance**: Zero impact when extensions are disabled  
-✅ **Supports Evolution**: Clear path for adding advanced AI capabilities  
-✅ **Follows Best Practices**: Clean interfaces, dependency injection, proper error handling  
-
-This architecture decision establishes the foundation for Phases 1-3 of the AI implementation roadmap while ensuring that Jarvis Assistant remains a reliable, high-performance tool for all users, regardless of their AI feature preferences.
+### Phase 4: Integration Extensions (H2 2025)
+- 📋 External API extensions
+- 📋 Export/Import tools
+- 📋 Sync service extensions
+- 📋 Third-party integrations
 
 ---
 
-**Status**: Implemented ✅  
-**Next Phase**: Week 2 - MCP Server Integration  
-**Future Phases**: LLM Integration → GraphRAG → Workflow Orchestration
+*This extension architecture provides a robust foundation for expanding Jarvis Assistant capabilities while maintaining system stability and performance.*

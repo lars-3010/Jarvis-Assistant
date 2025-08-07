@@ -28,6 +28,7 @@ from jarvis.services.vault.reader import VaultReader
 from jarvis.services.graph.database import GraphDatabase
 from jarvis.services.health import HealthChecker
 from jarvis.services.ranking import ResultRanker
+from jarvis.services.database_initializer import DatabaseInitializer
 from jarvis.mcp.cache import MCPToolCache
 from jarvis.mcp.container_context import ContainerAwareMCPServerContext
 from jarvis.monitoring.metrics import JarvisMetrics
@@ -35,6 +36,7 @@ from jarvis.models.document import SearchResult
 from jarvis.utils.logging import setup_logging
 from jarvis.utils.config import JarvisSettings, get_settings
 from jarvis.utils.errors import ToolExecutionError, ServiceUnavailableError, JarvisError
+from jarvis.utils.database_errors import DatabaseErrorHandler, DatabaseError
 
 # Neo4j exception handling
 from neo4j.exceptions import Neo4jError
@@ -306,28 +308,71 @@ def create_mcp_server(
                 context.mcp_cache.put(name, arguments or {}, results)
             
             return results
-        except ToolExecutionError as e:
-            logger.error(f"Error handling tool {name}: {e}")
+        except DatabaseError as db_error:
+            logger.error(f"Database error in tool {name}: {db_error}")
+            
+            # Format enhanced database error for MCP response
+            error_handler = DatabaseErrorHandler(context.database_path)
+            formatted_error = error_handler.format_error_for_user(db_error)
+            
             return [
                 types.TextContent(
                     type="text",
-                    text=f"Error executing {name}: {str(e)}"
+                    text=f"Database Error in {name}:\n\n{formatted_error}"
+                )
+            ]
+        except ToolExecutionError as e:
+            logger.error(f"Tool execution error in {name}: {e}")
+            
+            # Provide enhanced error information if available
+            error_text = f"❌ Error executing {name}: {str(e)}"
+            
+            if hasattr(e, 'suggestions') and e.suggestions:
+                error_text += "\n\n💡 Troubleshooting Steps:"
+                for i, suggestion in enumerate(e.suggestions, 1):
+                    error_text += f"\n   {i}. {suggestion}"
+            
+            return [
+                types.TextContent(
+                    type="text",
+                    text=error_text
                 )
             ]
         except JarvisError as e:
-            logger.error(f"A Jarvis error occurred while handling tool {name}: {e}")
+            logger.error(f"Jarvis error in tool {name}: {e}")
+            
+            # Provide enhanced error information if available
+            error_text = f"❌ Internal error in {name}: {str(e)}"
+            
+            if hasattr(e, 'suggestions') and e.suggestions:
+                error_text += "\n\n💡 Troubleshooting Steps:"
+                for i, suggestion in enumerate(e.suggestions, 1):
+                    error_text += f"\n   {i}. {suggestion}"
+            elif hasattr(e, 'error_code'):
+                error_text += f"\n\n🔍 Error Code: {e.error_code}"
+                error_text += "\n💡 This error may be temporary - try again in a moment"
+            
             return [
                 types.TextContent(
                     type="text",
-                    text=f"An internal Jarvis error occurred: {str(e)}"
+                    text=error_text
                 )
             ]
         except Exception as e:
-            logger.error(f"An unexpected error occurred while handling tool {name}: {e}")
+            logger.error(f"Unexpected error in tool {name}: {e}")
+            
+            # Provide basic troubleshooting guidance
+            error_text = f"❌ An unexpected error occurred in {name}: {str(e)}"
+            error_text += "\n\n💡 Troubleshooting Steps:"
+            error_text += "\n   1. Try the operation again in a moment"
+            error_text += "\n   2. Check if the vault path is accessible"
+            error_text += "\n   3. Verify the database is not being used by another process"
+            error_text += "\n   4. Check system logs for additional error details"
+            
             return [
                 types.TextContent(
                     type="text",
-                    text=f"An unexpected error occurred: {str(e)}"
+                    text=error_text
                 )
             ]
     
@@ -941,22 +986,99 @@ async def run_mcp_server(
     logger.debug(f"📁 Vaults: {[(name, str(path)) for name, path in vaults.items()]}")
     logger.debug(f"💾 Database: {database_path}")
     
-    # Test database accessibility before creating server
+    # Initialize database using DatabaseInitializer with enhanced error handling
     try:
-        logger.debug("💾 Testing database accessibility")
-        test_db = VectorDatabase(database_path, read_only=True)
-        test_healthy = test_db.is_healthy()
-        test_db.close()
-        logger.debug(f"💾 Database health check: {test_healthy}")
+        logger.info("💾 Initializing database for MCP server")
+        initializer = DatabaseInitializer(database_path, settings or get_settings())
+        error_handler = DatabaseErrorHandler(database_path)
         
-        if not test_healthy:
-            logger.error("❌ Database health check failed")
-            logger.error("❌ The database may be corrupted or inaccessible")
-            logger.error("❌ Try running: jarvis index --force to rebuild the database")
-            raise Exception("Database is not healthy")
-    except Exception as db_test_error:
-        logger.error(f"💥 Database test error: {db_test_error}")
+        if not initializer.ensure_database_exists():
+            logger.error("❌ Database initialization failed")
+            
+            # Get detailed database information for troubleshooting
+            try:
+                db_info = initializer.get_database_info()
+                if db_info.get('error_message'):
+                    logger.error(f"❌ Database error: {db_info['error_message']}")
+            except Exception:
+                pass
+            
+            # Provide enhanced error guidance
+            logger.error("❌ The database could not be created or accessed")
+            logger.error("💡 Enhanced troubleshooting steps:")
+            logger.error(f"💡   Database path: {database_path}")
+            logger.error(f"💡   Parent directory exists: {database_path.parent.exists()}")
+            logger.error(f"💡   Parent directory writable: {os.access(database_path.parent, os.W_OK) if database_path.parent.exists() else 'N/A'}")
+            
+            # Check disk space
+            try:
+                disk_usage = shutil.disk_usage(database_path.parent)
+                available_mb = disk_usage.free / (1024 * 1024)
+                logger.error(f"💡   Available disk space: {available_mb:.1f} MB")
+                if available_mb < 10:
+                    logger.error("💡   ⚠️ Low disk space detected - this may be the cause")
+            except Exception:
+                logger.error("💡   Could not check disk space")
+            
+            logger.error("💡 Common solutions:")
+            logger.error("💡   1. Check file permissions: ls -la '{}'".format(database_path.parent))
+            logger.error("💡   2. Create directory: mkdir -p '{}'".format(database_path.parent))
+            logger.error("💡   3. Check disk space: df -h")
+            logger.error("💡   4. Try manual database creation: jarvis init-database")
+            
+            raise ServiceUnavailableError("Database initialization failed - cannot start MCP server")
+        
+        # Get database information for logging
+        db_info = initializer.get_database_info()
+        logger.info(f"✅ Database ready: {db_info['note_count']} notes, {db_info['size_mb']} MB")
+        if db_info.get('has_embeddings'):
+            logger.info(f"🧠 Embeddings available: {db_info['embedding_count']} notes with vectors")
+        else:
+            logger.warning("⚠️ No embeddings found - semantic search may not work until indexing is complete")
+            logger.info("💡 Run 'jarvis index' to generate embeddings for semantic search")
+        
+    except ServiceUnavailableError:
+        # Re-raise service unavailable errors as-is
         raise
+    except DatabaseError as db_error:
+        # Handle enhanced database errors with user-friendly messaging
+        logger.error(f"💥 Database error: {db_error}")
+        
+        # Log suggestions from enhanced error handling
+        for suggestion in db_error.suggestions:
+            logger.error(f"💡 {suggestion}")
+        
+        # Log additional context if available
+        if db_error.context:
+            if db_error.context.get('database_path'):
+                logger.error(f"💡 Database path: {db_error.context['database_path']}")
+            if db_error.context.get('permissions_info'):
+                perm_info = db_error.context['permissions_info']
+                logger.error(f"💡 Permissions - Parent readable: {perm_info.get('parent_readable', 'Unknown')}, writable: {perm_info.get('parent_writable', 'Unknown')}")
+        
+        raise ServiceUnavailableError(f"Database initialization failed: {db_error}") from db_error
+    except Exception as db_init_error:
+        # Handle generic database initialization errors
+        logger.error(f"💥 Unexpected database initialization error: {db_init_error}")
+        
+        # Try to provide enhanced error information
+        try:
+            error_handler = DatabaseErrorHandler(database_path)
+            enhanced_error = error_handler.handle_generic_database_error(db_init_error, "initialize database")
+            
+            logger.error("💡 Enhanced troubleshooting information:")
+            for suggestion in enhanced_error.suggestions:
+                logger.error(f"💡   {suggestion}")
+                
+        except Exception:
+            # Fallback to basic error handling
+            logger.error("💡 Basic troubleshooting steps:")
+            logger.error("💡   1. Verify database path is accessible")
+            logger.error("💡   2. Check file system permissions")
+            logger.error("💡   3. Ensure no other processes are using the database")
+            logger.error("💡   4. Try manual database creation with 'jarvis init-database'")
+        
+        raise ServiceUnavailableError(f"Database initialization failed: {db_init_error}") from db_init_error
     
     logger.debug("🚀 Creating MCP server")
     server = create_mcp_server(vaults, database_path, settings)
@@ -1001,26 +1123,25 @@ async def run_mcp_server(
                         shutil.copy2(database_path, worker_db_path)
                         logger.debug("✅ Database copied successfully")
                     
-                    # Create a writable database connection for the worker
-                    logger.debug(f"💾 Creating worker database connection to {worker_db_path}")
-                    worker_database = VectorDatabase(worker_db_path, read_only=False)
-                    logger.debug(f"💾 Worker database connection created successfully")
+                    # Initialize worker database using DatabaseInitializer
+                    logger.debug(f"💾 Initializing worker database at {worker_db_path}")
+                    worker_initializer = DatabaseInitializer(worker_db_path, settings or get_settings())
                     
-                    # Test the database connection
-                    logger.debug("💾 Testing worker database connection")
-                    test_result = worker_database.is_healthy()
-                    logger.debug(f"💾 Worker database health check: {test_result}")
-                    
-                    if not test_result:
-                        logger.error("❌ Worker database connection is not healthy")
-                        logger.error("❌ This may indicate database file corruption or permission issues")
-                        try:
-                            worker_database.close()
-                        except Exception as close_error:
-                            logger.error(f"💥 Error closing unhealthy database: {close_error}")
+                    if not worker_initializer.ensure_database_exists():
+                        logger.error("❌ Worker database initialization failed")
+                        logger.error("❌ File watching cannot be enabled without a working database")
                         watch = False
-                        logger.warning("⚠️ Disabling file watching due to database issues")
+                        logger.warning("⚠️ Disabling file watching due to database initialization failure")
                     else:
+                        # Create database connection after successful initialization
+                        worker_database = VectorDatabase(worker_db_path, read_only=False, create_if_missing=True)
+                        logger.debug(f"💾 Worker database connection created successfully")
+                        
+                        # Get worker database info for logging
+                        worker_db_info = worker_initializer.get_database_info()
+                        logger.debug(f"💾 Worker database ready: {worker_db_info['note_count']} notes, {worker_db_info['size_mb']} MB")
+                        
+                        # Continue with vector worker setup
                         logger.info("🤖 Initializing vector encoder")
                         encoder = VectorEncoder()
                         logger.debug(f"🧠 Vector encoder initialized")

@@ -1,6 +1,6 @@
 # MCP Integration
 
-*Model Context Protocol implementation and tool architecture*
+## Model Context Protocol Implementation and Tool Architecture
 
 ## MCP Protocol Overview
 
@@ -33,34 +33,164 @@ The Model Context Protocol (MCP) is a standardized communication protocol that e
 
 ## Server Implementation
 
-### Core MCP Server
+### Core MCP Server Architecture
+
+The MCP server supports both traditional and container-aware architectures:
 
 ```python
-class JarvisMCPServer:
-    def __init__(self, vault_path: str):
-        self.vault_path = vault_path
-        self.app = Server("jarvis-assistant")
-        self.services = self._initialize_services()
-        self._register_tools()
-        self._register_resources()
+def create_mcp_server(
+    vaults: Dict[str, Path],
+    database_path: Path,
+    settings: Optional[JarvisSettings] = None
+) -> Server:
+    """Create and configure the MCP server with dependency injection support."""
+    server = Server("jarvis-assistant")
     
-    def _initialize_services(self) -> Dict[str, Any]:
-        """Initialize all backend services"""
-        return {
-            'vector': VectorSearchService(self.vault_path),
-            'graph': GraphSearchService(self.vault_path),
-            'vault': VaultService(self.vault_path)
-        }
+    # Use dependency injection container if enabled
+    if settings and settings.use_dependency_injection:
+        logger.info("Using container-aware MCP server context")
+        context = ContainerAwareMCPServerContext(vaults, database_path, settings)
+    else:
+        logger.info("Using traditional MCP server context")
+        context = MCPServerContext(vaults, database_path, settings)
     
-    def _register_tools(self):
-        """Register all MCP tools"""
-        self.app.list_tools()(self.list_tools)
-        self.app.call_tool()(self.call_tool)
+    # Register MCP protocol handlers
+    @server.list_tools()
+    async def handle_list_tools() -> list[types.Tool]:
+        """List available MCP tools with dynamic capability detection."""
+        return await context.get_available_tools()
     
-    def _register_resources(self):
-        """Register MCP resources"""
-        self.app.list_resources()(self.list_resources)
-        self.app.read_resource()(self.read_resource)
+    @server.call_tool()
+    async def handle_call_tool(name: str, arguments: dict | None) -> list[types.TextContent]:
+        """Handle tool execution with service container integration."""
+        return await context.execute_tool(name, arguments or {})
+```
+
+### Container-Aware Context
+
+The `ContainerAwareMCPServerContext` leverages the Service Container for dependency management:
+
+```python
+class ContainerAwareMCPServerContext:
+    def __init__(self, vaults: Dict[str, Path], database_path: Path, settings: JarvisSettings):
+        self.settings = settings
+        
+        # Initialize service container with database initialization
+        self.container = ServiceContainer(settings)
+        self._initialize_database(database_path)
+        self.container.configure_default_services()
+        
+        # Get services through dependency injection
+        self.vector_searcher = self.container.get(IVectorSearcher)
+        self.graph_database = self.container.get(IGraphDatabase)
+        self.vault_reader = self.container.get(IVaultReader)
+        self.health_checker = self.container.get(IHealthChecker)
+    
+    def _initialize_database(self, database_path: Path):
+        """Ensure database is ready before service initialization."""
+        initializer = DatabaseInitializer(database_path, self.settings)
+        if not initializer.ensure_database_exists():
+            raise ServiceUnavailableError("Database initialization failed")
+```
+
+### Enhanced Error Handling Integration
+
+The MCP server integrates comprehensive error handling with user-friendly messaging:
+
+```python
+@server.call_tool()
+async def handle_call_tool(name: str, arguments: dict | None) -> list[types.TextContent]:
+    """Handle tool execution with enhanced error handling."""
+    try:
+        # Execute tool logic
+        results = await execute_tool(name, arguments or {})
+        return results
+        
+    except DatabaseError as db_error:
+        logger.error(f"Database error in tool {name}: {db_error}")
+        
+        # Format enhanced database error for MCP response
+        error_handler = DatabaseErrorHandler(context.database_path)
+        formatted_error = error_handler.format_error_for_user(db_error)
+        
+        return [
+            types.TextContent(
+                type="text",
+                text=f"Database Error in {name}:\n\n{formatted_error}"
+            )
+        ]
+    
+    except JarvisError as e:
+        logger.error(f"Jarvis error in tool {name}: {e}")
+        
+        # Provide enhanced error information if available
+        error_text = f"❌ Internal error in {name}: {str(e)}"
+        
+        if hasattr(e, 'suggestions') and e.suggestions:
+            error_text += "\n\n💡 Troubleshooting Steps:"
+            for i, suggestion in enumerate(e.suggestions, 1):
+                error_text += f"\n   {i}. {suggestion}"
+        
+        return [types.TextContent(type="text", text=error_text)]
+```
+
+### Real-World Usage Example
+
+Here's how the MCP server actually starts up in production:
+
+```python
+# From src/jarvis/mcp/server.py - actual implementation
+def run_mcp_server():
+    """Run the MCP server with comprehensive initialization."""
+    settings = get_settings()
+    database_path = settings.get_vector_db_path()
+    
+    # Step 1: Initialize database using DatabaseInitializer
+    logger.info("💾 Initializing database for MCP server")
+    initializer = DatabaseInitializer(database_path, settings)
+    
+    if not initializer.ensure_database_exists():
+        logger.error("❌ Database initialization failed")
+        return False
+    
+    # Step 2: Create MCP server with container-aware context
+    server = create_mcp_server(
+        vaults={"default": Path(settings.vault_path)},
+        database_path=database_path,
+        settings=settings
+    )
+    
+    # Step 3: Start server with error handling
+    try:
+        logger.info("🚀 Starting MCP server")
+        asyncio.run(server.run())
+    except KeyboardInterrupt:
+        logger.info("👋 MCP server stopped by user")
+    except Exception as e:
+        logger.error(f"❌ MCP server failed: {e}")
+        return False
+    
+    return True
+```
+    
+    async def execute_tool(self, name: str, arguments: Dict[str, Any]) -> List[types.TextContent]:
+        """Execute tool with comprehensive error handling and metrics."""
+        try:
+            # Get metrics service if available
+            metrics = self.container.get(IMetrics) if self.settings.metrics_enabled else None
+            
+            # Execute with metrics tracking
+            if metrics:
+                with metrics.time_operation(f"mcp_tool_{name}"):
+                    return await self._route_tool_request(name, arguments)
+            else:
+                return await self._route_tool_request(name, arguments)
+                
+        except ServiceUnavailableError as e:
+            return self._handle_service_degradation(name, e)
+        except Exception as e:
+            logger.error(f"Tool execution failed: {name}: {e}")
+            return [types.TextContent(type="text", text=f"Error: {str(e)}")]
     
     async def list_tools(self) -> List[Tool]:
         """List all available tools"""

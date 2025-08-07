@@ -23,27 +23,92 @@ logger = setup_logging(__name__)
 class VectorDatabase(IVectorDatabase):
     """DuckDB-based vector database for document embeddings."""
     
-    def __init__(self, database_path: Path, read_only: bool = False):
+    def __init__(self, database_path: Path, read_only: bool = False, create_if_missing: bool = False):
         """Initialize the vector database.
         
         Args:
             database_path: Path to the DuckDB database file
             read_only: Whether to open in read-only mode
+            create_if_missing: Whether to create database if it doesn't exist
         """
         self.database_path = database_path
         self.read_only = read_only
+        self.create_if_missing = create_if_missing
         
         # Ensure database directory exists
         database_path.parent.mkdir(parents=True, exist_ok=True)
         
+        # Handle missing database file gracefully
+        if not database_path.exists() and not create_if_missing:
+            if read_only:
+                raise ServiceError(
+                    f"Database file does not exist at {database_path} and cannot be created in read-only mode. "
+                    f"Please ensure the database file exists or set create_if_missing=True."
+                )
+            else:
+                raise ServiceError(
+                    f"Database file does not exist at {database_path}. "
+                    f"Set create_if_missing=True to automatically create the database, "
+                    f"or use DatabaseInitializer to create it manually."
+                )
+        
         try:
+            # If database doesn't exist and create_if_missing is True, DuckDB will create it
             self.ddb_connection = duckdb.connect(str(database_path), read_only=read_only)
             logger.info(f"Connected to vector database: {database_path}")
         except Exception as e:
-            raise ServiceError(f"Failed to connect to DuckDB database at {database_path}: {e}") from e
+            # Provide more specific error messages for common issues
+            if "database does not exist" in str(e).lower():
+                raise ServiceError(
+                    f"Database file does not exist at {database_path}. "
+                    f"Use DatabaseInitializer.ensure_database_exists() to create it, "
+                    f"or set create_if_missing=True when initializing VectorDatabase."
+                ) from e
+            elif "permission" in str(e).lower():
+                raise ServiceError(
+                    f"Permission denied accessing database at {database_path}. "
+                    f"Please check file permissions and ensure the directory is writable."
+                ) from e
+            else:
+                raise ServiceError(f"Failed to connect to DuckDB database at {database_path}: {e}") from e
         
         if not self.read_only:
             self.initialize()
+
+    @classmethod
+    def ensure_exists(cls, database_path: Path) -> bool:
+        """Check if database exists and is accessible before opening.
+        
+        Args:
+            database_path: Path to the database file
+            
+        Returns:
+            True if database exists and is accessible, False otherwise
+        """
+        try:
+            if not database_path.exists():
+                logger.debug(f"Database file does not exist: {database_path}")
+                return False
+            
+            # Check if file is readable
+            if not database_path.is_file():
+                logger.error(f"Database path exists but is not a file: {database_path}")
+                return False
+            
+            # Try to open database in read-only mode to test accessibility
+            try:
+                with duckdb.connect(str(database_path), read_only=True) as conn:
+                    # Test basic connectivity
+                    conn.execute("SELECT 1").fetchone()
+                    logger.debug(f"Database accessibility confirmed: {database_path}")
+                    return True
+            except Exception as e:
+                logger.error(f"Database exists but is not accessible: {database_path}, error: {e}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error checking database existence: {database_path}, error: {e}")
+            return False
 
     @classmethod
     def from_config(cls, config) -> "VectorDatabase":
@@ -57,11 +122,12 @@ class VectorDatabase(IVectorDatabase):
         """
         database_path = config.get('database_path')
         read_only = config.get('read_only', False)
+        create_if_missing = config.get('create_if_missing', False)
         
         if not isinstance(database_path, Path):
             database_path = Path(database_path)
             
-        return cls(database_path=database_path, read_only=read_only)
+        return cls(database_path=database_path, read_only=read_only, create_if_missing=create_if_missing)
 
     def initialize(self) -> None:
         """Initialize the database schema."""
