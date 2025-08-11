@@ -124,3 +124,63 @@ class TimeoutError(DatasetGenerationError):
         super().__init__(message)
         self.operation_name = operation_name
         self.timeout_seconds = timeout_seconds
+
+
+class AreasNotFoundError(VaultValidationError):
+    """Areas/ folder not found in vault."""
+    
+    def __init__(self, vault_path: str, areas_folder_name: str = "Areas"):
+        """
+        Initialize AreasNotFoundError with actionable guidance.
+        
+        Args:
+            vault_path: Path to the vault where Areas/ folder was not found
+            areas_folder_name: Name of the expected Areas folder (default: "Areas")
+        """
+        message = (
+            f"Areas/ folder not found in vault: {vault_path}. "
+            f"Please create an Areas/ folder with knowledge content.\n\n"
+            f"To fix this issue:\n"
+            f"1. Create a folder named '{areas_folder_name}' in your vault root\n"
+            f"2. Organize your knowledge content into subdirectories within {areas_folder_name}/\n"
+            f"3. Example structure:\n"
+            f"   {areas_folder_name}/\n"
+            f"   ├── Computer Science/\n"
+            f"   ├── Natural Science/\n"
+            f"   └── Business/\n"
+            f"4. Move your structured knowledge notes into these subdirectories"
+        )
+        super().__init__(message, vault_path, "areas_not_found")
+        self.areas_folder_name = areas_folder_name
+        self.expected_path = f"{vault_path}/{areas_folder_name}"
+
+
+class InsufficientAreasContentError(InsufficientDataError):
+    """Insufficient content in Areas/ folder for dataset generation."""
+    
+    def __init__(self, areas_folder_path: str, areas_count: int, required_minimum: int = 5):
+        """
+        Initialize InsufficientAreasContentError with actionable guidance.
+        
+        Args:
+            areas_folder_path: Path to the Areas/ folder that has insufficient content
+            areas_count: Actual number of markdown files found in Areas/
+            required_minimum: Minimum number of files required for dataset generation
+        """
+        message = (
+            f"Insufficient notes in Areas/ folder: {areas_count} < {required_minimum}. "
+            f"Please add more knowledge content to Areas/ subdirectories.\n\n"
+            f"Current status:\n"
+            f"- Areas/ folder found at: {areas_folder_path}\n"
+            f"- Markdown files found: {areas_count}\n"
+            f"- Minimum required: {required_minimum}\n\n"
+            f"To fix this issue:\n"
+            f"1. Add more markdown (.md) files to your Areas/ subdirectories\n"
+            f"2. Ensure your knowledge content is properly organized in Areas/\n"
+            f"3. Move relevant notes from other folders (Journal/, Inbox/, etc.) to Areas/\n"
+            f"4. Create new knowledge notes in appropriate Areas/ subdirectories\n"
+            f"5. Verify that your .md files contain substantial content (not just empty files)"
+        )
+        super().__init__(message, required_minimum, areas_count)
+        self.areas_folder_path = areas_folder_path
+        self.areas_count = areas_count

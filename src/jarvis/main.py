@@ -505,7 +505,11 @@ def graph_search(uri: Optional[str], user: Optional[str], password: Optional[str
 @click.option('--vault', type=click.Path(path_type=Path),
               help='Path to Obsidian vault')
 @click.option('--output', type=click.Path(path_type=Path),
-              help='Output directory for datasets (default: ./datasets)')
+              help='Output directory for datasets (default: ~/Developer/Projects/Data-Analysis/datasets)')
+@click.option('--areas-only/--full-vault', default=None,
+              help='Process only Areas/ folder content (default: enabled for privacy). Use --full-vault to process entire vault.')
+@click.option('--areas-folder', type=str, default=None,
+              help='Name of the areas folder to process (default: Areas)')
 @click.option('--notes-filename', type=str, default='notes_dataset.csv',
               help='Filename for notes dataset')
 @click.option('--pairs-filename', type=str, default='pairs_dataset.csv',
@@ -520,9 +524,17 @@ def graph_search(uri: Optional[str], user: Optional[str], password: Optional[str
               help='Maximum pairs per note')
 @click.pass_context
 def generate_dataset(ctx: click.Context, vault: Optional[Path], output: Optional[Path],
+                    areas_only: Optional[bool], areas_folder: Optional[str],
                     notes_filename: str, pairs_filename: str, negative_ratio: float,
                     sampling: str, batch_size: int, max_pairs: int) -> None:
-    """Generate machine learning datasets from Obsidian vault."""
+    """Generate machine learning datasets from Obsidian vault.
+    
+    By default, processes only Areas/ folder content for privacy protection.
+    Personal content (Journal/, Inbox/, People/, etc.) is excluded unless --full-vault is used.
+    
+    The default output directory is ~/Developer/Projects/Data-Analysis/datasets for
+    better organization with data analysis projects.
+    """
     
     # Enable debug logging if verbose
     if ctx.obj.get('verbose', False):
@@ -545,18 +557,44 @@ def generate_dataset(ctx: click.Context, vault: Optional[Path], output: Optional
         # Determine vault path
         vault_path = resolve_vault_path_or_exit(vault)
         
-        # Determine output directory
+        # Determine output directory with tilde expansion
         if output is None:
-            # Use settings to get dataset output directory
+            # Use settings to get dataset output directory (already handles tilde expansion)
             output_dir = settings.get_dataset_output_path()
         else:
-            output_dir = output.resolve()
+            output_dir = Path(output).expanduser().resolve()
         
+        # Determine Areas/ filtering configuration
+        # Priority: CLI option > settings > default (True for privacy)
+        if areas_only is None:
+            areas_filtering_enabled = settings.dataset_areas_only
+        else:
+            areas_filtering_enabled = areas_only
+        
+        # Determine areas folder name and update settings if custom folder provided
+        if areas_folder is None:
+            areas_folder_name = settings.dataset_areas_folder_name
+        else:
+            areas_folder_name = areas_folder
+            # Temporarily update settings for this session
+            settings.dataset_areas_folder_name = areas_folder_name
+        
+        # Display configuration
         click.echo("="*60)
         click.echo("JARVIS DATASET GENERATION")
         click.echo("="*60)
         click.echo(f"Vault: {vault_path}")
         click.echo(f"Output Directory: {output_dir}")
+        
+        # Privacy and filtering information
+        if areas_filtering_enabled:
+            click.echo(f"🔒 Privacy Mode: ENABLED (Areas/ only)")
+            click.echo(f"📁 Areas Folder: {areas_folder_name}/")
+            click.echo("ℹ️  Personal content (Journal/, Inbox/, People/) will be excluded")
+        else:
+            click.echo(f"🌐 Full Vault Mode: ENABLED")
+            click.echo("⚠️  All vault content will be processed (including personal notes)")
+        
         click.echo(f"Notes Dataset: {notes_filename}")
         click.echo(f"Pairs Dataset: {pairs_filename}")
         click.echo(f"Negative Sampling Ratio: {negative_ratio}")
@@ -576,8 +614,8 @@ def generate_dataset(ctx: click.Context, vault: Optional[Path], output: Optional
                 percentage = (step / total) * 100
                 click.echo(f"[{step}/{total}] ({percentage:.1f}%) {message}")
         
-        # Initialize and run dataset generator
-        with DatasetGenerator(vault_path, output_dir) as generator:
+        # Initialize and run dataset generator with Areas/ filtering configuration
+        with DatasetGenerator(vault_path, output_dir, areas_only=areas_filtering_enabled) as generator:
             result = generator.generate_datasets(
                 notes_filename=notes_filename,
                 pairs_filename=pairs_filename,

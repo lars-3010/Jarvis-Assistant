@@ -538,10 +538,11 @@ class TestDatasetGenerationEndToEnd:
             
             print(f"\nTesting {vault_complexity} vault with {vault_metadata['total_notes']} notes")
             
-            # Create dataset generator
+            # Create dataset generator with Areas/ filtering disabled for full vault testing
             generator = DatasetGenerator(
                 vault_path=vault_path,
-                output_dir=temp_output_dir
+                output_dir=temp_output_dir,
+                areas_only=False  # Disable Areas/ filtering for comprehensive testing
             )
             
             # Mock vector encoder for consistent results

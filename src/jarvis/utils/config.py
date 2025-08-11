@@ -199,9 +199,19 @@ class JarvisSettings(BaseSettings):
     
     # Dataset generation settings
     dataset_output_dir: str = Field(
-        default="./datasets",
+        default="~/Developer/Projects/Data-Analysis/datasets",
         env="JARVIS_DATASET_OUTPUT_DIR",
         description="Default output directory for generated datasets"
+    )
+    dataset_areas_only: bool = Field(
+        default=True,
+        env="JARVIS_DATASET_AREAS_ONLY",
+        description="Process only Areas/ folder content for dataset generation"
+    )
+    dataset_areas_folder_name: str = Field(
+        default="Areas",
+        env="JARVIS_DATASET_AREAS_FOLDER_NAME",
+        description="Name of the folder to process (default: Areas)"
     )
     
     # Search settings
@@ -452,6 +462,19 @@ class JarvisSettings(BaseSettings):
             except Exception as e:
                 status.warnings.append(f"Could not check Neo4j health: {e}")
 
+        # Validate dataset generation configuration
+        try:
+            dataset_path = self.get_dataset_output_path()
+            # Path creation is handled in get_dataset_output_path, just validate it's accessible
+        except Exception as e:
+            status.errors.append(f"Dataset output directory configuration error: {e}")
+            status.valid = False
+        
+        # Validate Areas folder name
+        if not self.dataset_areas_folder_name.strip():
+            status.errors.append("Dataset areas folder name cannot be empty")
+            status.valid = False
+        
         # Validate analytics configuration
         if self.analytics_enabled:
             # Validate weights sum to reasonable values

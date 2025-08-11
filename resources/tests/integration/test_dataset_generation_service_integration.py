@@ -114,7 +114,7 @@ class TestDatasetGenerationServiceIntegration:
 
     def test_service_injection_and_initialization(self, temp_vault, temp_output_dir, mock_services):
         """Test that services are properly injected and initialized."""
-        generator = DatasetGenerator(temp_vault, temp_output_dir, skip_validation=True)
+        generator = DatasetGenerator(temp_vault, temp_output_dir, areas_only=False, skip_validation=True)
         
         # Verify services are initialized
         assert generator.vault_reader is not None
@@ -126,7 +126,7 @@ class TestDatasetGenerationServiceIntegration:
 
     def test_vault_reader_integration(self, temp_vault, temp_output_dir):
         """Test integration with VaultReader service."""
-        generator = DatasetGenerator(temp_vault, temp_output_dir, skip_validation=True)
+        generator = DatasetGenerator(temp_vault, temp_output_dir, areas_only=False, skip_validation=True)
         
         # Test that VaultReader is properly configured
         assert Path(generator.vault_reader.vault_path).resolve() == temp_vault.resolve()
@@ -141,7 +141,7 @@ class TestDatasetGenerationServiceIntegration:
         with patch('jarvis.tools.dataset_generation.dataset_generator.VectorEncoder') as mock_encoder_class:
             mock_encoder_class.return_value = mock_services['vector_encoder']
             
-            generator = DatasetGenerator(temp_vault, temp_output_dir, skip_validation=True)
+            generator = DatasetGenerator(temp_vault, temp_output_dir, areas_only=False, skip_validation=True)
             
             # Test that VectorEncoder is accessible
             assert generator.vector_encoder is not None
@@ -155,7 +155,7 @@ class TestDatasetGenerationServiceIntegration:
         with patch('jarvis.tools.dataset_generation.dataset_generator.GraphDatabase') as mock_graph_class:
             mock_graph_class.return_value = mock_services['graph_database']
             
-            generator = DatasetGenerator(temp_vault, temp_output_dir, skip_validation=True)
+            generator = DatasetGenerator(temp_vault, temp_output_dir, areas_only=False, skip_validation=True)
             
             # Test that GraphDatabase is accessible
             assert generator.graph_database is not None

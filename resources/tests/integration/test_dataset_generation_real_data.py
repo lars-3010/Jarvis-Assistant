@@ -281,10 +281,11 @@ Some content about topic {i}.
             
             print(f"\nTesting realistic vault with {len(expected_links)} notes")
             
-            # Create dataset generator
+            # Create dataset generator with Areas/ filtering disabled for comprehensive testing
             generator = DatasetGenerator(
                 vault_path=vault_path,
                 output_dir=temp_output_dir,
+                areas_only=False,  # Disable Areas/ filtering for comprehensive testing
                 skip_validation=True
             )
             

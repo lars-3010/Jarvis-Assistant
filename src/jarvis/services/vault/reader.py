@@ -22,11 +22,12 @@ logger = setup_logging(__name__)
 class VaultReader(IVaultReader):
     """Service for accessing and managing Obsidian vault files."""
     
-    def __init__(self, vault_path: Optional[str] = None):
+    def __init__(self, vault_path: Optional[str] = None, areas_only: Optional[bool] = None):
         """Initialize the vault reader.
         
         Args:
             vault_path: Path to the Obsidian vault (from settings if None)
+            areas_only: Whether to filter content to Areas/ folder only (from settings if None)
         """
         if vault_path is None:
             settings = get_settings()
@@ -43,7 +44,28 @@ class VaultReader(IVaultReader):
         if not self.vault_path.is_dir():
             raise ConfigurationError(f"Vault path is not a directory: {self.vault_path}")
         
-        logger.info(f"VaultReader initialized with path: {self.vault_path}")
+        # Initialize Areas filtering
+        settings = get_settings()
+        if areas_only is None:
+            # Get default from settings, defaulting to False for backward compatibility
+            areas_only = getattr(settings, 'dataset_areas_only', False)
+        
+        self.areas_only = areas_only
+        self.areas_filter = None
+        
+        if self.areas_only:
+            try:
+                # Lazy import to avoid circular imports
+                from jarvis.tools.dataset_generation.filters.areas_filter import AreasContentFilter
+                self.areas_filter = AreasContentFilter(str(self.vault_path))
+                logger.info(f"VaultReader initialized with Areas/ filtering enabled")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Areas filter: {e}")
+                # Fall back to no filtering to maintain functionality
+                self.areas_only = False
+                self.areas_filter = None
+        
+        logger.info(f"VaultReader initialized with path: {self.vault_path}, areas_only: {self.areas_only}")
     
     def is_within_vault(self, path: Path) -> bool:
         """Check if a path is within the vault.
@@ -281,6 +303,12 @@ class VaultReader(IVaultReader):
                         rel_path = self.get_relative_path(item_path)
                         if self.is_excluded_path(str(rel_path)):
                             continue
+                        
+                        # Apply Areas/ filtering if enabled
+                        if self.areas_only and self.areas_filter:
+                            if not self.areas_filter.is_areas_content(str(rel_path)):
+                                continue
+                                
                     except ValueError as e:
                         raise ServiceError(f"Error getting relative path for {item_path}: {e}") from e
                     
@@ -393,6 +421,14 @@ class VaultReader(IVaultReader):
                     except ValueError as e:
                         raise ServiceError(f"Error getting relative path for {file_path}: {e}") from e
         
+        # Apply Areas/ filtering if enabled
+        if self.areas_only and self.areas_filter:
+            try:
+                markdown_files = self.areas_filter.filter_file_paths(markdown_files)
+                logger.debug(f"Areas filtering applied: {len(markdown_files)} files after filtering")
+            except Exception as e:
+                logger.warning(f"Areas filtering failed, returning unfiltered results: {e}")
+        
         return markdown_files
     
     def is_excluded_path(self, path: str) -> bool:
@@ -497,6 +533,11 @@ class VaultReader(IVaultReader):
                 try:
                     rel_path = self.get_relative_path(file_path)
                     if not self.is_excluded_path(str(rel_path)):
+                        # Apply Areas/ filtering if enabled
+                        if self.areas_only and self.areas_filter:
+                            if not self.areas_filter.is_areas_content(str(rel_path)):
+                                continue
+                        
                         stats = file_path.stat()
                         if stats.st_mtime > cutoff_time:
                             recent_files.append({
@@ -511,6 +552,71 @@ class VaultReader(IVaultReader):
         
         recent_files.sort(key=lambda x: x["modified"], reverse=True)
         return recent_files[:limit]
+    
+    def get_areas_filter_status(self) -> Dict[str, Any]:
+        """Get the current status of Areas/ filtering.
+        
+        Returns:
+            Dictionary with Areas filtering status and information
+        """
+        status = {
+            "areas_filtering_enabled": self.areas_only,
+            "areas_filter_initialized": self.areas_filter is not None,
+            "vault_path": str(self.vault_path)
+        }
+        
+        if self.areas_filter:
+            try:
+                # Get Areas folder information
+                areas_structure = self.areas_filter.get_areas_structure()
+                exclusion_summary = self.areas_filter.get_exclusion_summary()
+                
+                status.update({
+                    "areas_folder_name": self.areas_filter.areas_folder_name,
+                    "areas_folder_path": str(self.areas_filter.areas_folder_path),
+                    "areas_folder_exists": areas_structure.get("exists", False),
+                    "areas_file_count": areas_structure.get("total_files", 0),
+                    "excluded_folders": exclusion_summary.get("excluded_folders", [])
+                })
+            except Exception as e:
+                status["error"] = f"Error getting Areas filter information: {e}"
+                logger.warning(f"Error getting Areas filter status: {e}")
+        
+        return status
+    
+    def validate_areas_filtering(self) -> Dict[str, Any]:
+        """Validate Areas/ filtering configuration and folder structure.
+        
+        Returns:
+            Dictionary with validation results
+        """
+        if not self.areas_only:
+            return {
+                "areas_filtering_enabled": False,
+                "validation_passed": True,
+                "message": "Areas filtering is disabled"
+            }
+        
+        if not self.areas_filter:
+            return {
+                "areas_filtering_enabled": True,
+                "validation_passed": False,
+                "error": "Areas filter not initialized"
+            }
+        
+        try:
+            validation_result = self.areas_filter.validate_areas_folder()
+            return {
+                "areas_filtering_enabled": True,
+                "validation_passed": validation_result.get("validation_passed", False),
+                **validation_result
+            }
+        except Exception as e:
+            return {
+                "areas_filtering_enabled": True,
+                "validation_passed": False,
+                "error": str(e)
+            }
     
     # Interface method required by IVaultReader
     def list_files(self, extension: str = ".md") -> List[Path]:

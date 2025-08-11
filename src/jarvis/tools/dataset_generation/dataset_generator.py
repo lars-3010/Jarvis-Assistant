@@ -42,12 +42,14 @@ logger = setup_logging(__name__)
 class DatasetGenerator:
     """Main orchestrator for dataset generation process."""
 
-    def __init__(self, vault_path: Path, output_dir: Path, skip_validation: bool = False):
+    def __init__(self, vault_path: Path, output_dir: Path = None, areas_only: bool = None, 
+                 skip_validation: bool = False):
         """Initialize the dataset generator.
         
         Args:
             vault_path: Path to the Obsidian vault
-            output_dir: Directory for output files
+            output_dir: Directory for output files (uses default from settings if None)
+            areas_only: Whether to filter content to Areas/ folder only (uses settings if None)
             skip_validation: Skip validation during initialization (for testing)
             
         Raises:
@@ -55,7 +57,21 @@ class DatasetGenerator:
             ConfigurationError: If configuration is invalid
         """
         self.vault_path = vault_path.resolve()
-        self.output_dir = output_dir.resolve()
+        
+        # Resolve configuration settings
+        settings = get_settings()
+        
+        # Set Areas filtering mode
+        if areas_only is None:
+            areas_only = settings.dataset_areas_only
+        self.areas_only = areas_only
+        
+        # Resolve output directory with tilde expansion
+        if output_dir is None:
+            output_dir = settings.get_dataset_output_path()
+        else:
+            output_dir = Path(output_dir).expanduser().resolve()
+        self.output_dir = output_dir
 
         # Validate inputs (unless skipped for testing)
         if not skip_validation:
@@ -68,7 +84,7 @@ class DatasetGenerator:
 
         # Initialize services
         try:
-            self.vault_reader = VaultReader(str(vault_path))
+            self.vault_reader = VaultReader(str(vault_path), areas_only=self.areas_only)
             self.vector_encoder = VectorEncoder()
 
             # GraphDatabase is optional
@@ -120,6 +136,21 @@ class DatasetGenerator:
         """
         start_time = time.time()
         logger.info("Starting comprehensive dataset generation")
+        
+        # Enhanced logging for filtering status with privacy messaging
+        filtering_metadata = self._get_filtering_metadata()
+        if self.areas_only:
+            logger.info("🔒 PRIVACY MODE: Processing Areas/ folder only - personal content excluded")
+            logger.info(f"📁 Areas folder: {filtering_metadata.get('areas_folder_path', 'Areas/')}")
+            if filtering_metadata.get('excluded_folders'):
+                excluded_count = len(filtering_metadata['excluded_folders'])
+                logger.info(f"🚫 Excluding {excluded_count} folders for privacy: {', '.join(filtering_metadata['excluded_folders'][:5])}")
+                if excluded_count > 5:
+                    logger.info(f"    ... and {excluded_count - 5} more folders")
+            logger.info("ℹ️  This ensures personal journals, people notes, and private content remain private")
+        else:
+            logger.info("📂 Processing entire vault - all content included")
+            logger.warning("⚠️  Personal content will be included in dataset generation")
 
         try:
             # Create output directory
@@ -132,13 +163,32 @@ class DatasetGenerator:
 
             link_graph, link_statistics = self.link_extractor.extract_all_links()
 
-            # Step 2: Get all notes
+            # Step 2: Get all notes with filtering-aware discovery
             logger.info("Step 2: Discovering notes")
             if progress_callback:
                 progress_callback("Discovering notes...", 1, 5)
 
             all_notes = [str(path) for path in self.vault_reader.get_markdown_files()]
-            logger.info(f"Found {len(all_notes)} notes in vault")
+            
+            # Enhanced logging for filtered content discovery
+            if self.areas_only:
+                # Get total vault count for comparison
+                try:
+                    from jarvis.services.vault.reader import VaultReader
+                    full_vault_reader = VaultReader(str(self.vault_path), areas_only=False)
+                    total_vault_notes = len(list(full_vault_reader.get_markdown_files()))
+                    excluded_count = total_vault_notes - len(all_notes)
+                    
+                    logger.info(f"📊 Content filtering results:")
+                    logger.info(f"   • Areas/ notes found: {len(all_notes)}")
+                    logger.info(f"   • Total vault notes: {total_vault_notes}")
+                    logger.info(f"   • Notes excluded for privacy: {excluded_count}")
+                    logger.info(f"   • Privacy protection: {excluded_count/total_vault_notes*100:.1f}% of content excluded")
+                except Exception as e:
+                    logger.info(f"📊 Found {len(all_notes)} notes in Areas/ folder (privacy filtering active)")
+                    logger.debug(f"Could not calculate exclusion stats: {e}")
+            else:
+                logger.info(f"📊 Found {len(all_notes)} notes in vault (full vault processing)")
 
             if len(all_notes) < 5:
                 raise InsufficientDataError(
@@ -212,12 +262,37 @@ class DatasetGenerator:
             positive_pairs = pairs_dataset['link_exists'].sum() if 'link_exists' in pairs_dataset.columns else 0
             negative_pairs = len(pairs_dataset) - positive_pairs
 
+            # Get filtering metadata if Areas filtering is enabled
+            filtering_metadata = self._get_filtering_metadata()
+
+            # Enhanced validation result with filtering metadata
             validation_result = ValidationResult(
                 valid=True,
                 notes_processed=len(notes_dataset),
                 links_extracted=link_statistics.total_links,
-                links_broken=link_statistics.broken_links
+                links_broken=link_statistics.broken_links,
+                # Add filtering metadata to validation result
+                areas_folder_exists=filtering_metadata.get("areas_folder_path") is not None,
+                areas_notes_count=filtering_metadata.get("areas_notes_count", len(all_notes)),
+                filtering_mode="areas_only" if filtering_metadata["filtering_enabled"] else "full_vault",
+                excluded_notes_count=filtering_metadata.get("excluded_folder_count", 0),
+                areas_folder_path=filtering_metadata.get("areas_folder_path"),
+                areas_validation_passed=filtering_metadata.get("content_protection_level") != "unknown"
             )
+
+            # Calculate privacy protection percentage if filtering is enabled
+            privacy_protection_percentage = None
+            total_vault_notes = None
+            if filtering_metadata["filtering_enabled"]:
+                try:
+                    from jarvis.services.vault.reader import VaultReader
+                    full_vault_reader = VaultReader(str(self.vault_path), areas_only=False)
+                    total_vault_notes = len(list(full_vault_reader.get_markdown_files()))
+                    if total_vault_notes > 0:
+                        excluded_count = total_vault_notes - len(all_notes)
+                        privacy_protection_percentage = (excluded_count / total_vault_notes) * 100
+                except Exception as e:
+                    logger.debug(f"Could not calculate privacy protection percentage: {e}")
 
             summary = GenerationSummary(
                 total_notes=len(all_notes),
@@ -236,7 +311,19 @@ class DatasetGenerator:
                 performance_metrics={
                     "notes_per_second": len(notes_dataset) / total_time if total_time > 0 else 0,
                     "pairs_per_second": len(pairs_dataset) / total_time if total_time > 0 else 0
-                }
+                },
+                # Enhanced filtering metadata
+                filtering_enabled=filtering_metadata["filtering_enabled"],
+                areas_folder_path=filtering_metadata["areas_folder_path"],
+                excluded_folders=filtering_metadata["excluded_folders"],
+                privacy_mode=filtering_metadata["privacy_mode"],
+                filtering_summary=filtering_metadata.get("filtering_summary"),
+                content_protection_level=filtering_metadata.get("content_protection_level", "none"),
+                privacy_message=filtering_metadata.get("privacy_message"),
+                excluded_folder_count=filtering_metadata.get("excluded_folder_count", 0),
+                areas_notes_count=filtering_metadata.get("areas_notes_count", len(all_notes)),
+                total_vault_notes=total_vault_notes,
+                privacy_protection_percentage=privacy_protection_percentage
             )
 
             result = DatasetGenerationResult(
@@ -246,9 +333,20 @@ class DatasetGenerator:
                 pairs_dataset_path=str(pairs_output_path)
             )
 
-            logger.info(f"Dataset generation completed successfully in {total_time:.2f}s")
-            logger.info(f"Notes dataset: {len(notes_dataset)} rows")
-            logger.info(f"Pairs dataset: {len(pairs_dataset)} rows ({positive_pairs} positive, {negative_pairs} negative)")
+            # Enhanced completion logging with filtering information
+            logger.info(f"✅ Dataset generation completed successfully in {total_time:.2f}s")
+            logger.info(f"📊 Generation Results:")
+            logger.info(f"   • Notes dataset: {len(notes_dataset)} rows")
+            logger.info(f"   • Pairs dataset: {len(pairs_dataset)} rows ({positive_pairs} positive, {negative_pairs} negative)")
+            
+            # Log filtering summary
+            if filtering_metadata["filtering_enabled"]:
+                logger.info(f"🔒 Privacy Protection Summary:")
+                logger.info(f"   • Content source: Areas/ folder only")
+                logger.info(f"   • Excluded folders: {len(filtering_metadata.get('excluded_folders', []))}")
+                logger.info(f"   • Privacy mode: Active - personal content protected")
+            else:
+                logger.info(f"📂 Full vault processing - all content included")
 
             return result
 
@@ -304,14 +402,48 @@ class DatasetGenerator:
         """
         start_time = time.time()
         logger.info("Starting dataset generation with comprehensive progress tracking")
+        
+        # Enhanced logging for filtering status with privacy messaging
+        filtering_metadata = self._get_filtering_metadata()
+        if self.areas_only:
+            logger.info("🔒 PRIVACY MODE: Processing Areas/ folder only - personal content excluded")
+            logger.info(f"📁 Areas folder: {filtering_metadata.get('areas_folder_path', 'Areas/')}")
+            if filtering_metadata.get('excluded_folders'):
+                excluded_count = len(filtering_metadata['excluded_folders'])
+                logger.info(f"🚫 Excluding {excluded_count} folders for privacy: {', '.join(filtering_metadata['excluded_folders'][:5])}")
+                if excluded_count > 5:
+                    logger.info(f"    ... and {excluded_count - 5} more folders")
+            logger.info("ℹ️  This ensures personal journals, people notes, and private content remain private")
+        else:
+            logger.info("📂 Processing entire vault - all content included")
+            logger.warning("⚠️  Personal content will be included in dataset generation")
 
         try:
             # Create output directory
             self.output_dir.mkdir(parents=True, exist_ok=True)
 
-            # Get all notes first to estimate total work
+            # Get all notes first to estimate total work with filtering-aware discovery
             all_notes = [str(path) for path in self.vault_reader.get_markdown_files()]
-            logger.info(f"Found {len(all_notes)} notes in vault")
+            
+            # Enhanced logging for filtered content discovery
+            if self.areas_only:
+                # Get total vault count for comparison
+                try:
+                    from jarvis.services.vault.reader import VaultReader
+                    full_vault_reader = VaultReader(str(self.vault_path), areas_only=False)
+                    total_vault_notes = len(list(full_vault_reader.get_markdown_files()))
+                    excluded_count = total_vault_notes - len(all_notes)
+                    
+                    logger.info(f"📊 Content filtering results:")
+                    logger.info(f"   • Areas/ notes found: {len(all_notes)}")
+                    logger.info(f"   • Total vault notes: {total_vault_notes}")
+                    logger.info(f"   • Notes excluded for privacy: {excluded_count}")
+                    logger.info(f"   • Privacy protection: {excluded_count/total_vault_notes*100:.1f}% of content excluded")
+                except Exception as e:
+                    logger.info(f"📊 Found {len(all_notes)} notes in Areas/ folder (privacy filtering active)")
+                    logger.debug(f"Could not calculate exclusion stats: {e}")
+            else:
+                logger.info(f"📊 Found {len(all_notes)} notes in vault (full vault processing)")
 
             if len(all_notes) < 5:
                 raise InsufficientDataError(
@@ -456,12 +588,37 @@ class DatasetGenerator:
             positive_pairs_count = pairs_dataset['link_exists'].sum() if 'link_exists' in pairs_dataset.columns else 0
             negative_pairs_count = len(pairs_dataset) - positive_pairs_count
 
+            # Get filtering metadata if Areas filtering is enabled
+            filtering_metadata = self._get_filtering_metadata()
+
+            # Enhanced validation result with filtering metadata
             validation_result = ValidationResult(
                 valid=True,
                 notes_processed=len(notes_dataset),
                 links_extracted=link_statistics.total_links,
-                links_broken=link_statistics.broken_links
+                links_broken=link_statistics.broken_links,
+                # Add filtering metadata to validation result
+                areas_folder_exists=filtering_metadata.get("areas_folder_path") is not None,
+                areas_notes_count=filtering_metadata.get("areas_notes_count", len(all_notes)),
+                filtering_mode="areas_only" if filtering_metadata["filtering_enabled"] else "full_vault",
+                excluded_notes_count=filtering_metadata.get("excluded_folder_count", 0),
+                areas_folder_path=filtering_metadata.get("areas_folder_path"),
+                areas_validation_passed=filtering_metadata.get("content_protection_level") != "unknown"
             )
+
+            # Calculate privacy protection percentage if filtering is enabled
+            privacy_protection_percentage = None
+            total_vault_notes = None
+            if filtering_metadata["filtering_enabled"]:
+                try:
+                    from jarvis.services.vault.reader import VaultReader
+                    full_vault_reader = VaultReader(str(self.vault_path), areas_only=False)
+                    total_vault_notes = len(list(full_vault_reader.get_markdown_files()))
+                    if total_vault_notes > 0:
+                        excluded_count = total_vault_notes - len(all_notes)
+                        privacy_protection_percentage = (excluded_count / total_vault_notes) * 100
+                except Exception as e:
+                    logger.debug(f"Could not calculate privacy protection percentage: {e}")
 
             summary = GenerationSummary(
                 total_notes=len(all_notes),
@@ -486,7 +643,19 @@ class DatasetGenerator:
                     "pairs_success_rate": pairs_performance.success_rate,
                     "parallel_processing": use_parallel,
                     "batch_size": batch_size
-                }
+                },
+                # Enhanced filtering metadata
+                filtering_enabled=filtering_metadata["filtering_enabled"],
+                areas_folder_path=filtering_metadata["areas_folder_path"],
+                excluded_folders=filtering_metadata["excluded_folders"],
+                privacy_mode=filtering_metadata["privacy_mode"],
+                filtering_summary=filtering_metadata.get("filtering_summary"),
+                content_protection_level=filtering_metadata.get("content_protection_level", "none"),
+                privacy_message=filtering_metadata.get("privacy_message"),
+                excluded_folder_count=filtering_metadata.get("excluded_folder_count", 0),
+                areas_notes_count=filtering_metadata.get("areas_notes_count", len(all_notes)),
+                total_vault_notes=total_vault_notes,
+                privacy_protection_percentage=privacy_protection_percentage
             )
 
             result = DatasetGenerationResult(
@@ -496,10 +665,21 @@ class DatasetGenerator:
                 pairs_dataset_path=str(pairs_output_path)
             )
 
-            logger.info(f"Dataset generation with progress tracking completed successfully in {total_time:.2f}s")
-            logger.info(f"Notes dataset: {len(notes_dataset)} rows (rate: {notes_performance.average_rate:.2f}/sec)")
-            logger.info(f"Pairs dataset: {len(pairs_dataset)} rows (rate: {pairs_performance.average_rate:.2f}/sec)")
-            logger.info(f"Peak memory usage: {main_performance.peak_memory_mb:.1f}MB")
+            # Enhanced completion logging with filtering information
+            logger.info(f"✅ Dataset generation with progress tracking completed successfully in {total_time:.2f}s")
+            logger.info(f"📊 Generation Results:")
+            logger.info(f"   • Notes dataset: {len(notes_dataset)} rows (rate: {notes_performance.average_rate:.2f}/sec)")
+            logger.info(f"   • Pairs dataset: {len(pairs_dataset)} rows (rate: {pairs_performance.average_rate:.2f}/sec)")
+            logger.info(f"   • Peak memory usage: {main_performance.peak_memory_mb:.1f}MB")
+            
+            # Log filtering summary
+            if filtering_metadata["filtering_enabled"]:
+                logger.info(f"🔒 Privacy Protection Summary:")
+                logger.info(f"   • Content source: Areas/ folder only")
+                logger.info(f"   • Excluded folders: {len(filtering_metadata.get('excluded_folders', []))}")
+                logger.info(f"   • Privacy mode: Active - personal content protected")
+            else:
+                logger.info(f"📂 Full vault processing - all content included")
 
             return result
 
@@ -617,6 +797,73 @@ class DatasetGenerator:
 
         return links
 
+    def _get_filtering_metadata(self) -> dict[str, any]:
+        """Get comprehensive metadata about filtering configuration and status.
+        
+        Returns:
+            Dictionary with detailed filtering metadata
+        """
+        metadata = {
+            "filtering_enabled": self.areas_only,
+            "areas_folder_path": None,
+            "excluded_folders": [],
+            "privacy_mode": self.areas_only,
+            "filtering_summary": None,
+            "content_protection_level": "none"
+        }
+        
+        if self.areas_only:
+            try:
+                from jarvis.tools.dataset_generation.filters.areas_filter import AreasContentFilter
+                areas_filter = AreasContentFilter(str(self.vault_path))
+                
+                # Get Areas folder path
+                metadata["areas_folder_path"] = str(areas_filter.areas_folder_path)
+                
+                # Get comprehensive exclusion summary
+                exclusion_summary = areas_filter.get_exclusion_summary()
+                metadata["excluded_folders"] = exclusion_summary.get("excluded_folders", [])
+                metadata["excluded_folder_count"] = exclusion_summary.get("excluded_folder_count", 0)
+                
+                # Get Areas structure information
+                areas_structure = areas_filter.get_areas_structure()
+                metadata["areas_notes_count"] = areas_structure.get("total_files", 0)
+                metadata["areas_subdirectories"] = areas_structure.get("subdirectories", [])
+                metadata["areas_total_size_bytes"] = areas_structure.get("total_size_bytes", 0)
+                
+                # Create filtering summary message
+                excluded_count = len(metadata["excluded_folders"])
+                if excluded_count > 0:
+                    metadata["filtering_summary"] = (
+                        f"Privacy filtering active: {excluded_count} folders excluded "
+                        f"({', '.join(metadata['excluded_folders'][:3])}"
+                        f"{', ...' if excluded_count > 3 else ''})"
+                    )
+                    metadata["content_protection_level"] = "high"
+                else:
+                    metadata["filtering_summary"] = "Areas/ filtering active (no other folders found)"
+                    metadata["content_protection_level"] = "medium"
+                
+                # Add privacy messaging
+                metadata["privacy_message"] = (
+                    "Only content from the Areas/ folder is included in dataset generation. "
+                    "Personal journals, people notes, and private content are excluded."
+                )
+                
+            except Exception as e:
+                logger.warning(f"Could not get filtering metadata: {e}")
+                metadata["filtering_summary"] = "Areas/ filtering enabled (metadata unavailable)"
+                metadata["content_protection_level"] = "unknown"
+        else:
+            metadata["filtering_summary"] = "Full vault processing - all content included"
+            metadata["content_protection_level"] = "none"
+            metadata["privacy_message"] = (
+                "All vault content is included in dataset generation. "
+                "Consider enabling Areas/ filtering for privacy protection."
+            )
+        
+        return metadata
+
     def validate_vault(self) -> ValidationResult:
         """Validate vault structure and accessibility with comprehensive checks.
         
@@ -685,18 +932,130 @@ class DatasetGenerator:
     def _validate_vault_structure(self, result: ValidationResult) -> bool:
         """Validate vault structure and content requirements."""
         try:
-            vault_reader = VaultReader(str(self.vault_path))
+            # Initialize vault reader with same filtering settings as the main instance
+            vault_reader = VaultReader(str(self.vault_path), areas_only=self.areas_only)
+            
+            # If Areas filtering is enabled, validate Areas folder first
+            if self.areas_only:
+                try:
+                    from jarvis.tools.dataset_generation.filters.areas_filter import AreasContentFilter
+                    
+                    # Get minimum content threshold from settings
+                    settings = get_settings()
+                    min_threshold = getattr(settings, 'dataset_min_areas_content', 5)
+                    
+                    areas_filter = AreasContentFilter(
+                        str(self.vault_path), 
+                        min_content_threshold=min_threshold
+                    )
+                    areas_validation = areas_filter.validate_areas_folder()
+                    
+                    logger.info(f"Areas folder validation: {areas_validation['markdown_file_count']} files found")
+                    
+                    # Populate comprehensive Areas-specific information in result
+                    result.areas_folder_exists = areas_validation.get('areas_folder_exists', False)
+                    result.areas_notes_count = areas_validation.get('markdown_file_count', 0)
+                    result.areas_folder_path = areas_validation.get('areas_folder_path')
+                    result.areas_folder_name = areas_validation.get('areas_folder_name')
+                    result.areas_subdirectory_count = areas_validation.get('subdirectory_count', 0)
+                    result.areas_total_size_bytes = areas_validation.get('total_size_bytes', 0)
+                    result.min_content_threshold = min_threshold
+                    result.areas_validation_passed = areas_validation.get('validation_passed', False)
+                    result.filtering_mode = "areas_only"
+                    
+                    # Add informative messages about Areas filtering
+                    if result.areas_validation_passed:
+                        logger.info(f"Areas/ folder validation passed: {result.areas_notes_count} files, "
+                                  f"{result.areas_subdirectory_count} subdirectories, "
+                                  f"{result.areas_total_size_bytes / 1024:.1f}KB total")
+                        
+                        # Add success message to warnings for user visibility
+                        result.warnings.append(
+                            f"Areas/ filtering active: Processing {result.areas_notes_count} files "
+                            f"from {result.areas_subdirectory_count} subdirectories - personal content excluded"
+                        )
+                    
+                except Exception as e:
+                    # Handle Areas-specific validation errors with detailed messages
+                    result.valid = False
+                    result.filtering_mode = "areas_only"
+                    result.areas_validation_passed = False
+                    
+                    # Provide specific error messages based on exception type
+                    from jarvis.tools.dataset_generation.models.exceptions import (
+                        AreasNotFoundError, InsufficientAreasContentError
+                    )
+                    
+                    if isinstance(e, AreasNotFoundError):
+                        result.errors.append(
+                            f"Areas/ folder not found: {e}. "
+                            f"Please create an Areas/ folder in your vault and organize your "
+                            f"knowledge content there for dataset generation."
+                        )
+                    elif isinstance(e, InsufficientAreasContentError):
+                        result.errors.append(
+                            f"Insufficient content in Areas/ folder: {e}. "
+                            f"Please add more markdown files to Areas/ subdirectories "
+                            f"(minimum {result.min_content_threshold} files required)."
+                        )
+                    else:
+                        result.errors.append(f"Areas folder validation failed: {e}")
+                    
+                    return False
+            else:
+                result.filtering_mode = "full_vault"
+                result.areas_validation_passed = True  # Not applicable for full vault mode
+            
             markdown_files = list(vault_reader.get_markdown_files())
 
-            # Check minimum file count
+            # Check minimum file count with Areas-specific messaging
             if len(markdown_files) == 0:
                 result.valid = False
-                result.errors.append("No markdown files found in vault")
+                if self.areas_only:
+                    result.errors.append(
+                        "No markdown files found in Areas/ folder. "
+                        "Please add knowledge content to Areas/ subdirectories for dataset generation."
+                    )
+                else:
+                    result.errors.append("No markdown files found in vault")
                 return False
-            elif len(markdown_files) < 5:
-                result.warnings.append(f"Very few markdown files found: {len(markdown_files)} (minimum 5 recommended for meaningful datasets)")
+            elif len(markdown_files) < result.min_content_threshold:
+                if self.areas_only:
+                    result.valid = False
+                    result.errors.append(
+                        f"Insufficient content in Areas/ folder: {len(markdown_files)} files found, "
+                        f"but minimum {result.min_content_threshold} required for meaningful dataset generation. "
+                        f"Please add more markdown files to Areas/ subdirectories."
+                    )
+                    return False
+                else:
+                    result.warnings.append(
+                        f"Very few markdown files found: {len(markdown_files)} "
+                        f"(minimum {result.min_content_threshold} recommended for meaningful datasets)"
+                    )
 
             result.notes_processed = len(markdown_files)
+            
+            # If Areas filtering is enabled, also count excluded files for reporting
+            if self.areas_only:
+                try:
+                    # Count total files in vault for comparison
+                    full_vault_reader = VaultReader(str(self.vault_path), areas_only=False)
+                    all_files = list(full_vault_reader.get_markdown_files())
+                    result.excluded_notes_count = len(all_files) - len(markdown_files)
+                    
+                    if result.excluded_notes_count > 0:
+                        logger.info(f"Areas filtering: {len(markdown_files)} files included, {result.excluded_notes_count} files excluded")
+                        result.warnings.append(
+                            f"Privacy mode active: {result.excluded_notes_count} files excluded from processing "
+                            f"(only Areas/ content included)"
+                        )
+                    else:
+                        logger.info("Areas filtering: All vault content is within Areas/ folder")
+                        
+                except Exception as e:
+                    logger.warning(f"Could not count excluded files: {e}")
+                    result.excluded_notes_count = 0
 
             # Check for reasonable file sizes
             total_size = 0

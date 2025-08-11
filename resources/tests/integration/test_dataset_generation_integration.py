@@ -44,9 +44,11 @@ class TestDatasetGenerationServiceIntegration:
         vault_path = Path(temp_dir) / "test_vault"
         vault_path.mkdir(parents=True)
         
-        # Create test markdown files
+        # Create test markdown files with Areas/ folder structure
+        # Note: These tests now need to account for default Areas/ filtering
         test_files = {
-            "note1.md": """---
+            # Areas/ folder - knowledge content (will be included with default filtering)
+            "Areas/Computer Science/note1.md": """---
 title: Machine Learning Basics
 tags: [ml, ai, basics]
 aliases: [ML Basics, ML 101]
@@ -67,7 +69,7 @@ This note covers the fundamentals of machine learning.
 
 See also: [[Deep Learning]] and [[Data Science]].
 """,
-            "note2.md": """---
+            "Areas/Computer Science/note2.md": """---
 title: Deep Learning
 tags: [dl, ai, advanced]
 aliases: [DL, Neural Networks]
@@ -88,7 +90,7 @@ Advanced machine learning using neural networks.
 
 Related: [[Machine Learning Basics]] provides the foundation.
 """,
-            "note3.md": """---
+            "Areas/Data Analysis/note3.md": """---
 title: Data Science
 tags: [ds, analytics, statistics]
 aliases: [Data Analytics]
@@ -108,7 +110,7 @@ The science of extracting insights from data.
 
 Connected to [[Machine Learning Basics]] for predictive modeling.
 """,
-            "folder/note4.md": """---
+            "Areas/Computer Science/folder/note4.md": """---
 title: AI Overview
 tags: [ai, overview, 🗺️]
 aliases: [Artificial Intelligence]
@@ -125,7 +127,7 @@ High-level overview of artificial intelligence.
 - Natural Language Processing
 - Computer Vision
 """,
-            "folder/note5.md": """---
+            "Areas/Software Architecture/note5.md": """---
 title: Neural Network Interface
 tags: [interface, architecture, 🌿]
 domains: [software-architecture]
@@ -142,6 +144,25 @@ Abstract interface for neural network implementations.
 - train()
 
 Implemented by various [[Deep Learning]] architectures.
+""",
+            # Non-Areas content (will be excluded with default filtering)
+            "Journal/2024-01-01.md": """---
+title: Daily Journal Entry
+tags: [journal, personal]
+---
+
+# Daily Journal Entry
+
+Personal thoughts and reflections.
+""",
+            "Inbox/random-note.md": """---
+title: Random Inbox Note
+tags: [inbox, temporary]
+---
+
+# Random Note
+
+Temporary note in inbox.
 """,
             "projects/project1.md": """---
 title: ML Project Alpha
@@ -246,9 +267,9 @@ Planned follow-up to [[ML Project Alpha]].
 
     def test_vault_reader_integration(self, real_vault_reader):
         """Test VaultReader service integration."""
-        # Test getting markdown files
-        markdown_files = real_vault_reader.get_markdown_files()
-        assert len(markdown_files) == 7  # All test files
+        # Test getting markdown files (with default Areas/ filtering)
+        markdown_files = list(real_vault_reader.get_markdown_files())
+        assert len(markdown_files) == 5  # Only Areas/ files with default filtering
         
         # Test reading individual files
         note1_path = None
@@ -403,9 +424,11 @@ Planned follow-up to [[ML Project Alpha]].
     def test_end_to_end_dataset_generation(self, temp_vault_dir, temp_output_dir, mock_vector_encoder):
         """Test complete end-to-end dataset generation workflow."""
         # Create DatasetGenerator with real and mock services
+        # Note: Using default Areas/ filtering behavior
         generator = DatasetGenerator(
             vault_path=temp_vault_dir,
-            output_dir=temp_output_dir
+            output_dir=temp_output_dir,
+            areas_only=False  # Disable Areas/ filtering for comprehensive testing
         )
         
         # Mock the vector encoder in the generator's components
@@ -445,7 +468,8 @@ Planned follow-up to [[ML Project Alpha]].
         """Test error handling and recovery mechanisms in service interactions."""
         generator = DatasetGenerator(
             vault_path=temp_vault_dir,
-            output_dir=temp_output_dir
+            output_dir=temp_output_dir,
+            areas_only=False  # Disable Areas/ filtering for comprehensive error testing
         )
         
         # Test with failing vector encoder

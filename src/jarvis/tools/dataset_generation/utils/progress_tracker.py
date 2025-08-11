@@ -327,21 +327,30 @@ class ProgressTracker:
         total_processed = self.processed_items + self.failed_items
         progress_percent = (total_processed / self.total_items * 100) if self.total_items > 0 else 0
         
-        log_msg = f"{self.description}: {total_processed}/{self.total_items} ({progress_percent:.1f}%)"
+        # Enhanced progress logging with emojis for better visibility
+        log_msg = f"⚡ {self.description}: {total_processed}/{self.total_items} ({progress_percent:.1f}%)"
         
         if context:
-            log_msg += f" - {context}"
+            # Add context-specific emojis
+            if "notes" in context.lower():
+                log_msg += f" - 📝 {context}"
+            elif "pairs" in context.lower():
+                log_msg += f" - 🔗 {context}"
+            elif "filtering" in context.lower():
+                log_msg += f" - 🔒 {context}"
+            else:
+                log_msg += f" - {context}"
         
         log_msg += f" | Rate: {self.metrics.current_rate:.1f} items/sec"
         
         if self.metrics.estimated_remaining_seconds > 0:
             remaining_time = timedelta(seconds=int(self.metrics.estimated_remaining_seconds))
-            log_msg += f" | ETA: {remaining_time}"
+            log_msg += f" | ⏱️ ETA: {remaining_time}"
         
-        log_msg += f" | Memory: {self.metrics.current_memory_mb:.1f}MB"
+        log_msg += f" | 💾 Memory: {self.metrics.current_memory_mb:.1f}MB"
         
         if self.failed_items > 0:
-            log_msg += f" | Errors: {self.failed_items} ({self.metrics.error_rate:.1%})"
+            log_msg += f" | ❌ Errors: {self.failed_items} ({self.metrics.error_rate:.1%})"
         
         logger.info(log_msg)
 

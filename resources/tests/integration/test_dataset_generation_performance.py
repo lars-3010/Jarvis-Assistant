@@ -186,10 +186,11 @@ class TestDatasetGenerationPerformance:
                 vault_path, vault_size, avg_content_size=300, link_density=0.05
             )
             
-            # Create generator
+            # Create generator with Areas/ filtering disabled for performance testing
             generator = DatasetGenerator(
                 vault_path=vault_path,
-                output_dir=temp_output_dir
+                output_dir=temp_output_dir,
+                areas_only=False  # Disable Areas/ filtering for comprehensive performance testing
             )
             
             # Mock vector encoder for consistent performance

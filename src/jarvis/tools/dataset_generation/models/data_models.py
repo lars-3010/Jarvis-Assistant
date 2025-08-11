@@ -189,6 +189,18 @@ class ValidationResult:
     notes_failed: int = 0
     links_extracted: int = 0
     links_broken: int = 0
+    
+    # Enhanced fields for Areas/ filtering
+    areas_folder_exists: bool = False
+    areas_notes_count: int = 0
+    filtering_mode: str = "full_vault"  # "areas_only" or "full_vault"
+    excluded_notes_count: int = 0
+    areas_folder_path: str | None = None
+    areas_folder_name: str | None = None
+    areas_subdirectory_count: int = 0
+    areas_total_size_bytes: int = 0
+    min_content_threshold: int = 5
+    areas_validation_passed: bool = False
 
     @property
     def success_rate(self) -> float:
@@ -219,6 +231,21 @@ class GenerationSummary:
     validation_result: ValidationResult
     output_files: dict[str, str] = field(default_factory=dict)
     performance_metrics: dict[str, float] = field(default_factory=dict)
+    
+    # Enhanced fields for filtering metadata
+    filtering_enabled: bool = False
+    areas_folder_path: str | None = None
+    excluded_folders: list[str] = field(default_factory=list)
+    privacy_mode: bool = False
+    
+    # Additional filtering metadata for comprehensive reporting
+    filtering_summary: str | None = None
+    content_protection_level: str = "none"  # "none", "medium", "high", "unknown"
+    privacy_message: str | None = None
+    excluded_folder_count: int = 0
+    areas_notes_count: int = 0
+    total_vault_notes: int | None = None  # For comparison when filtering is enabled
+    privacy_protection_percentage: float | None = None  # Percentage of content excluded
 
     @property
     def processing_rate(self) -> float:

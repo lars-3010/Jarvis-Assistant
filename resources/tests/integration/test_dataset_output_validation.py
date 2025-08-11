@@ -101,9 +101,9 @@ Data science combines statistics and [[note1|machine learning]].
     @pytest.fixture
     def generated_datasets(self, temp_vault, temp_output_dir):
         """Generate datasets for testing."""
-        generator = DatasetGenerator(temp_vault, temp_output_dir, skip_validation=True)
+        generator = DatasetGenerator(temp_vault, temp_output_dir, areas_only=False, skip_validation=True)
         
-        # Generate datasets
+        # Generate datasets with Areas/ filtering disabled for comprehensive testing
         result = generator.generate_datasets(
             notes_filename="test_notes.csv",
             pairs_filename="test_pairs.csv",
@@ -479,8 +479,8 @@ Data science combines statistics and [[note1|machine learning]].
 
     def test_reproducibility(self, temp_vault, temp_output_dir):
         """Test that dataset generation is reproducible."""
-        # Generate datasets twice with same parameters
-        generator1 = DatasetGenerator(temp_vault, temp_output_dir, skip_validation=True)
+        # Generate datasets twice with same parameters, disabling Areas/ filtering for comprehensive testing
+        generator1 = DatasetGenerator(temp_vault, temp_output_dir, areas_only=False, skip_validation=True)
         result1 = generator1.generate_datasets(
             notes_filename="test1_notes.csv",
             pairs_filename="test1_pairs.csv",
@@ -490,7 +490,7 @@ Data science combines statistics and [[note1|machine learning]].
             max_pairs_per_note=20
         )
         
-        generator2 = DatasetGenerator(temp_vault, temp_output_dir, skip_validation=True)
+        generator2 = DatasetGenerator(temp_vault, temp_output_dir, areas_only=False, skip_validation=True)
         result2 = generator2.generate_datasets(
             notes_filename="test2_notes.csv",
             pairs_filename="test2_pairs.csv",
@@ -604,7 +604,7 @@ Data science combines statistics and [[note1|machine learning]].
         assert "Service initialization failed" in str(exc_info.value) or "Vault path not found" in str(exc_info.value)
         
         # Test with valid generator but simulate error during generation
-        valid_generator = DatasetGenerator(temp_vault, temp_output_dir, skip_validation=True)
+        valid_generator = DatasetGenerator(temp_vault, temp_output_dir, areas_only=False, skip_validation=True)
         
         # Test that we can handle errors during generation by mocking a service failure
         with patch.object(valid_generator.link_extractor, 'extract_all_links', side_effect=Exception("Simulated error")):
