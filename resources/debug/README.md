@@ -1,73 +1,51 @@
-# MCP Server Debugging Archive
+# Debug Scripts
 
-This directory contains all the debugging files and documentation used to solve the MCP server integration issues with Claude Code.
+This directory contains debugging and development scripts for Jarvis Assistant.
 
-## Files
+## Scripts
 
-### Documentation
-- **`mcp_debugging_process.md`** - Complete debugging process documentation
-- **`README.md`** - This file
+### debug_pairs_issue.py
+Debug script for investigating pairs dataset filtering issues. This script:
+- Creates a test vault with Areas/ content
+- Tests the dataset generation workflow step by step
+- Validates that Areas/ filtering works correctly for both notes and pairs datasets
+- Helps identify issues with link extraction and negative sampling
 
-### Debug Scripts
-- **`debug_mcp.py`** - Interactive script to test MCP server startup and protocol communication
-- **`mcp_wrapper.py`** - Wrapper script with logging redirection (deprecated approach)
-- **`testing_commands.sh`** - Shell script with various testing commands
-
-## Problem Summary
-
-The main issue was that the MCP server was using `stdout` for logging, which interfered with the MCP JSON-RPC protocol communication. The solution was to create a dedicated MCP entry point (`src/jarvis/mcp/mcp_main.py`) that properly redirects all logging to `stderr` and log files.
-
-## Key Files Created in Main Project
-
-1. **`src/jarvis/mcp/mcp_main.py`** - Clean MCP entry point with proper stdio handling
-2. **`jarvis-mcp-stdio`** script entry in `pyproject.toml`
-
-## How to Use Debug Scripts
-
-### 1. Test MCP Protocol Communication
+Usage:
 ```bash
-python3 resources/debug/debug_mcp.py
+cd resources/debug
+python debug_pairs_issue.py
 ```
 
-### 2. Manual MCP Server Test
+### demo_error_handling.py
+Demonstration script for enhanced database error handling. This script shows:
+- Missing database error handling
+- Permission error handling  
+- Database corruption error handling
+- Disk space error handling
+- Database initializer integration
+
+Usage:
 ```bash
-# Load environment variables first
-source .env
-echo '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0"}}}' | uv run jarvis-mcp-stdio "$JARVIS_VAULT_PATH"
+cd resources/debug
+python demo_error_handling.py
 ```
 
-### 3. View All Testing Commands
+### pairs_dataset_generator_fix.py
+Documentation of fixes needed for pairs dataset generator to respect Areas filtering. Contains:
+- Code snippets showing the required fixes
+- Fallback mechanisms for stratified sampling
+- Integration points for filtered notes
+
+This is a reference file, not an executable script.
+
+## Running Debug Scripts
+
+All scripts are designed to be run from the `resources/debug/` directory:
+
 ```bash
-./resources/debug/testing_commands.sh
+cd resources/debug
+python <script_name>.py
 ```
 
-## Final Working Configuration
-
-### Claude Code MCP Configuration
-```json
-"jarvis": {
-  "command": "uv",
-  "args": ["run", "jarvis-mcp-stdio", "${JARVIS_VAULT_PATH}"],
-  "cwd": "/path/to/your/Jarvis-Assistant",
-  "env": {
-    "PYTHONUNBUFFERED": "1",
-    "PYTHONIOENCODING": "utf-8",
-    "JARVIS_VAULT_PATH": "/path/to/your/obsidian/vault"
-  }
-}
-```
-
-**Note**: Replace `/path/to/your/Jarvis-Assistant` and `/path/to/your/obsidian/vault` with your actual paths, or ensure your `.env` file is properly configured.
-
-## Logs Location
-
-- **MCP Server Logs**: `~/.jarvis/mcp_server.log`
-- **Database**: `~/.jarvis/jarvis.duckdb`
-
-## Success Indicators
-
-When the MCP server is working correctly, you should see:
-- Clean JSON-RPC responses on stdout
-- All logging messages in stderr and log files
-- Proper MCP protocol initialization responses
-- Available tools: `search-semantic`, `read-note`, `list-vaults`, `search-vault`
+The scripts automatically adjust their import paths to find the Jarvis source code.

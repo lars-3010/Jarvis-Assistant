@@ -19,6 +19,7 @@ from jarvis.services.graph.database import GraphDatabase
 from jarvis.services.vector.encoder import VectorEncoder
 from jarvis.utils.logging import setup_logging
 
+from ..feature_engineer import FeatureEngineer
 from ..models.data_models import NoteData, PairFeatures, ProcessingStats, ValidationResult
 from ..models.exceptions import FeatureEngineeringError, InsufficientDataError, SamplingError
 from ..models.interfaces import BaseSamplingStrategy
@@ -143,6 +144,10 @@ class StratifiedSamplingStrategy(BaseSamplingStrategy):
         attempts = 0
 
         group_names = list(groups.keys())
+        
+        # If no groups available, return empty list
+        if not group_names:
+            return pairs
 
         while len(pairs) < target_count and attempts < max_attempts:
             # Select a group with at least 2 notes
@@ -184,13 +189,18 @@ class PairsDatasetGenerator:
         self.graph_database = graph_database
         self.sampling_strategy = sampling_strategy or RandomSamplingStrategy()
         self._processing_stats = None
+        
+        # Initialize feature engineer for comprehensive feature extraction
+        self.feature_engineer = FeatureEngineer(vector_encoder)
+        self._feature_engineer_fitted = False
 
     def generate_dataset(self, notes_data: dict[str, NoteData],
                         link_graph: nx.DiGraph,
                         negative_sampling_ratio: float = 5.0,
                         max_pairs_per_note: int = 1000,
                         batch_size: int = 32,
-                        progress_callback=None) -> pd.DataFrame:
+                        progress_callback=None,
+                        filtered_notes: list[str] = None) -> pd.DataFrame:
         """Generate comprehensive pairs dataset with smart sampling.
         
         Args:
@@ -221,6 +231,26 @@ class PairsDatasetGenerator:
         self._processing_stats = ProcessingStats(start_time=datetime.now())
 
         try:
+            # Fit feature engineer with actual note data (preserving paths for cache)
+            logger.info("Fitting feature engineer for TF-IDF and topic modeling features")
+            valid_notes_data = [note_data for note_data in notes_data.values() if note_data.content and note_data.content.strip()]
+            if valid_notes_data:
+                try:
+                    fitting_results = self.feature_engineer.fit_analyzers(valid_notes_data)
+                    self._feature_engineer_fitted = True
+                    logger.info(f"Feature engineer fitted: {fitting_results}")
+                    
+                    # Log cache info for debugging
+                    if hasattr(self.feature_engineer, '_topic_predictions_cache'):
+                        cached_count = len(self.feature_engineer._topic_predictions_cache)
+                        logger.info(f"Topic predictions cached for {cached_count} notes - pairs generation will use cached results")
+                except Exception as e:
+                    logger.warning(f"Failed to fit feature engineer: {e}")
+                    self._feature_engineer_fitted = False
+            else:
+                logger.warning("No valid note data available for feature engineer fitting")
+                self._feature_engineer_fitted = False
+
             # Extract positive pairs from the graph
             positive_pairs = self._extract_positive_pairs(link_graph)
             logger.info(f"Found {len(positive_pairs)} positive pairs")
@@ -726,6 +756,21 @@ class PairsDatasetGenerator:
 
         except Exception as e:
             logger.error(f"Negative sampling failed: {e}")
+            
+            # Fallback to random sampling if stratified sampling fails
+            if not isinstance(self.sampling_strategy, RandomSamplingStrategy):
+                logger.warning("Stratified sampling failed, falling back to random sampling")
+                try:
+                    fallback_strategy = RandomSamplingStrategy()
+                    negative_pairs = fallback_strategy.sample_negative_pairs(
+                        positive_pairs, all_notes, target_count
+                    )
+                    logger.info(f"Fallback random sampling generated {len(negative_pairs)} negative pairs")
+                    return negative_pairs
+                except Exception as fallback_e:
+                    logger.error(f"Fallback random sampling also failed: {fallback_e}")
+                    raise SamplingError(f"Both stratified and random sampling failed: {e}, {fallback_e}") from e
+            
             raise SamplingError(f"Negative sampling failed: {e}") from e
 
     def _limit_pairs_per_note(self, all_pairs: list[tuple[str, str, bool]],
@@ -810,13 +855,31 @@ class PairsDatasetGenerator:
         """
         feature_errors = []
         
-        # Compute semantic similarity with error handling
+        # Compute semantic and TF-IDF similarity with error handling
         cosine_sim = 0.0
+        tfidf_sim = 0.0
+        combined_sim = 0.0
+        
         try:
             cosine_sim = self._compute_semantic_similarity(note_a, note_b)
         except Exception as e:
             logger.warning(f"Failed to compute semantic similarity for {note_a.path} <-> {note_b.path}: {e}")
             feature_errors.append("semantic_similarity")
+        
+        try:
+            if self._feature_engineer_fitted:
+                similarity_features = self.feature_engineer.extract_pair_features(
+                    note_a, note_b
+                )
+                tfidf_sim = similarity_features['tfidf_similarity']
+                combined_sim = similarity_features['combined_similarity']
+            else:
+                # Fallback: use semantic similarity as combined similarity
+                combined_sim = cosine_sim
+        except Exception as e:
+            logger.warning(f"Failed to compute TF-IDF similarity for {note_a.path} <-> {note_b.path}: {e}")
+            feature_errors.append("tfidf_similarity")
+            combined_sim = cosine_sim  # Fallback to semantic similarity
 
         # Compute tag-based features with error handling
         tag_overlap = 0
@@ -929,12 +992,27 @@ class PairsDatasetGenerator:
             logger.debug(f"Failed to compute title similarity for {note_a.path} <-> {note_b.path}: {e}")
             feature_errors.append("title_similarity")
 
+        # Compute topic modeling features with error handling
+        topic_sim = 0.0
+        same_dominant_topic = False
+        topic_coherence_avg = 0.0
+        try:
+            topic_features = self._compute_topic_similarity(note_a, note_b)
+            topic_sim = topic_features['topic_similarity']
+            same_dominant_topic = topic_features['same_dominant_topic']
+            topic_coherence_avg = topic_features['topic_coherence_avg']
+        except Exception as e:
+            logger.debug(f"Failed to compute topic features for {note_a.path} <-> {note_b.path}: {e}")
+            feature_errors.append("topic_features")
+
         # Create PairFeatures object with error handling
         try:
             features = PairFeatures(
                 note_a_path=note_a.path,
                 note_b_path=note_b.path,
                 cosine_similarity=cosine_sim,
+                tfidf_similarity=tfidf_sim,
+                combined_similarity=combined_sim,
                 semantic_cluster_match=False,  # Would require clustering analysis
                 tag_overlap_count=tag_overlap,
                 tag_jaccard_similarity=tag_jaccard,
@@ -949,7 +1027,11 @@ class PairsDatasetGenerator:
                 target_centrality=target_centrality,
                 clustering_coefficient=clustering_coeff,
                 link_exists=link_exists,
-                title_similarity=title_sim
+                title_similarity=title_sim,
+                # Topic modeling features
+                topic_similarity=topic_sim,
+                same_dominant_topic=same_dominant_topic,
+                topic_coherence_avg=topic_coherence_avg
             )
 
             # Log feature computation summary
@@ -1142,6 +1224,8 @@ class PairsDatasetGenerator:
                 'note_a_path': features.note_a_path,
                 'note_b_path': features.note_b_path,
                 'cosine_similarity': features.cosine_similarity,
+                'tfidf_similarity': features.tfidf_similarity,
+                'combined_similarity': features.combined_similarity,
                 'semantic_cluster_match': features.semantic_cluster_match,
                 'tag_overlap_count': features.tag_overlap_count,
                 'tag_jaccard_similarity': features.tag_jaccard_similarity,
@@ -1158,7 +1242,11 @@ class PairsDatasetGenerator:
                 'link_exists': features.link_exists,
                 'same_folder': features.same_folder,
                 'content_length_ratio': features.content_length_ratio,
-                'title_similarity': features.title_similarity
+                'title_similarity': features.title_similarity,
+                # Topic modeling features
+                'topic_similarity': features.topic_similarity,
+                'same_dominant_topic': features.same_dominant_topic,
+                'topic_coherence_avg': features.topic_coherence_avg
             }
             data.append(row)
 
@@ -1166,11 +1254,14 @@ class PairsDatasetGenerator:
 
         # Ensure proper data types
         numeric_columns = [
-            'cosine_similarity', 'tag_overlap_count', 'tag_jaccard_similarity',
+            'cosine_similarity', 'tfidf_similarity', 'combined_similarity',
+            'tag_overlap_count', 'tag_jaccard_similarity',
             'vault_path_distance', 'shortest_path_length', 'common_neighbors_count',
             'adamic_adar_score', 'word_count_ratio', 'creation_time_diff_days',
             'quality_stage_compatibility', 'source_centrality', 'target_centrality',
-            'clustering_coefficient', 'content_length_ratio', 'title_similarity'
+            'clustering_coefficient', 'content_length_ratio', 'title_similarity',
+            # Topic modeling features
+            'topic_similarity', 'topic_coherence_avg'
         ]
 
         for col in numeric_columns:
@@ -1259,3 +1350,38 @@ class PairsDatasetGenerator:
             ProcessingStats object or None if no processing has occurred
         """
         return self._processing_stats
+
+    def _compute_topic_similarity(self, note_a: NoteData, note_b: NoteData) -> dict[str, any]:
+        """Compute topic-based similarity features between two notes.
+        
+        Args:
+            note_a: First note data
+            note_b: Second note data
+            
+        Returns:
+            Dictionary containing topic similarity features
+        """
+        import json
+        import numpy as np
+        
+        # Default topic features
+        topic_features = {
+            'topic_similarity': 0.0,
+            'same_dominant_topic': False,
+            'topic_coherence_avg': 0.0
+        }
+        
+        try:
+            # Skip if we don't have topic modeling capabilities
+            if not hasattr(self, 'topic_modeler') or not hasattr(self, '_topic_model_fitted'):
+                return topic_features
+            
+            # For pairs dataset, we need access to the topic modeler from the notes generator
+            # This is a limitation of the current architecture - we'll return defaults for now
+            # In a full implementation, we'd need to share the topic model between generators
+            logger.debug(f"Topic similarity computation not yet implemented for pairs: {note_a.path} <-> {note_b.path}")
+            return topic_features
+            
+        except Exception as e:
+            logger.warning(f"Failed to compute topic similarity for {note_a.path} <-> {note_b.path}: {e}")
+            return topic_features

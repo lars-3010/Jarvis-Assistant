@@ -7,6 +7,7 @@ centrality metrics, and content-based features.
 """
 
 import gc
+import re
 import time
 from datetime import datetime
 from pathlib import Path
@@ -21,6 +22,7 @@ from jarvis.services.vault.reader import VaultReader
 from jarvis.services.vector.encoder import VectorEncoder
 from jarvis.utils.logging import setup_logging
 
+from ..feature_engineer import FeatureEngineer
 from ..models.data_models import (
     CentralityMetrics,
     NoteData,
@@ -53,6 +55,10 @@ class NotesDatasetGenerator:
         self.graph_database = graph_database
         self.markdown_parser = markdown_parser or MarkdownParser(extract_semantic=True)
         self._processing_stats = None
+        
+        # Initialize feature engineer for comprehensive feature extraction
+        self.feature_engineer = FeatureEngineer(vector_encoder)
+        self._feature_engineer_fitted = False
 
     def generate_dataset(self, notes: list[str], link_graph: nx.DiGraph,
                         batch_size: int = 32, progress_callback=None) -> pd.DataFrame:
@@ -95,6 +101,54 @@ class NotesDatasetGenerator:
 
             # Pre-compute centrality metrics for all nodes
             centrality_cache = self._precompute_centrality_metrics(link_graph)
+            
+            # Fit feature engineer for comprehensive analysis (semantic, topic, content)
+            logger.info("Fitting feature engineer for comprehensive analysis")
+            try:
+                # Load all note contents for analyzer fitting
+                all_note_data = []
+                for note_path in notes:
+                    try:
+                        content, metadata = self.vault_reader.read_file(note_path)
+                        parsed_content = self.markdown_parser.parse(content)
+                        clean_content = parsed_content.get('content_without_frontmatter', content)
+                        if clean_content and clean_content.strip():
+                            # Create complete note data for feature engineer fitting
+                            note_data = NoteData(
+                                path=note_path,
+                                title=Path(note_path).stem,
+                                content=clean_content,
+                                metadata=metadata or {},
+                                tags=parsed_content.get('tags', []),
+                                outgoing_links=parsed_content.get('outgoing_links', []),
+                                embedding=None  # Will be generated during fitting
+                            )
+                            all_note_data.append(note_data)
+                    except Exception as e:
+                        logger.warning(f"Failed to load content for fitting from {note_path}: {e}")
+                        continue
+                
+                if all_note_data:
+                    # Fit all analyzers (semantic, topic, content) through feature engineer
+                    fitting_results = self.feature_engineer.fit_analyzers(all_note_data)
+                    self._feature_engineer_fitted = True
+                    logger.info(f"Feature engineer fitted: semantic={fitting_results['semantic_fitted']}, topic={fitting_results['topic_fitted']}")
+                    if 'topic_count' in fitting_results:
+                        logger.info(f"Topics discovered: {fitting_results['topic_count']}")
+                    
+                    # Also fit the individual semantic analyzer for backward compatibility
+                    all_contents = [note_data.content for note_data in all_note_data]
+                    semantic_results = self.semantic_analyzer.fit_and_transform(all_contents)
+                    self._semantic_analyzer_fitted = True
+                    logger.info(f"Semantic analyzer fitted: {semantic_results['tfidf_features']} TF-IDF features")
+                else:
+                    logger.warning("No valid content found for feature engineer fitting")
+                    self._feature_engineer_fitted = False
+                    self._semantic_analyzer_fitted = False
+            except Exception as e:
+                logger.warning(f"Failed to fit feature engineer: {e}")
+                self._feature_engineer_fitted = False
+                self._semantic_analyzer_fitted = False
 
             # Process notes in adaptive batches
             i = 0
@@ -217,6 +271,54 @@ class NotesDatasetGenerator:
         try:
             # Pre-compute centrality metrics for all nodes
             centrality_cache = self._precompute_centrality_metrics(link_graph)
+            
+            # Fit feature engineer for comprehensive analysis (semantic, topic, content)
+            logger.info("Fitting feature engineer for comprehensive analysis")
+            try:
+                # Load all note contents for analyzer fitting
+                all_note_data = []
+                for note_path in notes:
+                    try:
+                        content, metadata = self.vault_reader.read_file(note_path)
+                        parsed_content = self.markdown_parser.parse(content)
+                        clean_content = parsed_content.get('content_without_frontmatter', content)
+                        if clean_content and clean_content.strip():
+                            # Create complete note data for feature engineer fitting
+                            note_data = NoteData(
+                                path=note_path,
+                                title=Path(note_path).stem,
+                                content=clean_content,
+                                metadata=metadata or {},
+                                tags=parsed_content.get('tags', []),
+                                outgoing_links=parsed_content.get('outgoing_links', []),
+                                embedding=None  # Will be generated during fitting
+                            )
+                            all_note_data.append(note_data)
+                    except Exception as e:
+                        logger.warning(f"Failed to load content for fitting from {note_path}: {e}")
+                        continue
+                
+                if all_note_data:
+                    # Fit all analyzers (semantic, topic, content) through feature engineer
+                    fitting_results = self.feature_engineer.fit_analyzers(all_note_data)
+                    self._feature_engineer_fitted = True
+                    logger.info(f"Feature engineer fitted: semantic={fitting_results['semantic_fitted']}, topic={fitting_results['topic_fitted']}")
+                    if 'topic_count' in fitting_results:
+                        logger.info(f"Topics discovered: {fitting_results['topic_count']}")
+                    
+                    # Also fit the individual semantic analyzer for backward compatibility
+                    all_contents = [note_data.content for note_data in all_note_data]
+                    semantic_results = self.semantic_analyzer.fit_and_transform(all_contents)
+                    self._semantic_analyzer_fitted = True
+                    logger.info(f"Semantic analyzer fitted: {semantic_results['tfidf_features']} TF-IDF features")
+                else:
+                    logger.warning("No valid content found for feature engineer fitting")
+                    self._feature_engineer_fitted = False
+                    self._semantic_analyzer_fitted = False
+            except Exception as e:
+                logger.warning(f"Failed to fit feature engineer: {e}")
+                self._feature_engineer_fitted = False
+                self._semantic_analyzer_fitted = False
 
             # Initialize parallel processing components
             parallel_extractor = ParallelFeatureExtractor(max_workers)
@@ -490,7 +592,14 @@ class NotesDatasetGenerator:
                         'heading_count': features.heading_count,
                         'max_heading_depth': features.max_heading_depth,
                         'technical_term_density': features.technical_term_density,
-                        'concept_density_score': features.concept_density_score
+                        'concept_density_score': features.concept_density_score,
+                        # Topic modeling features
+                        'dominant_topic_id': features.dominant_topic_id,
+                        'dominant_topic_probability': features.dominant_topic_probability,
+                        'topic_probabilities_json': features.topic_probabilities_json,
+                        'topic_label': features.topic_label,
+                        'topic_coherence_score': features.topic_coherence_score,
+                        'semantic_cluster_id_topic': features.semantic_cluster_id_topic
                     }
                     features_dicts.append(feature_dict)
                 except Exception as e:
@@ -653,7 +762,6 @@ class NotesDatasetGenerator:
                 tags.add(meta_tags)
 
         # Extract hashtags from content
-        import re
         hashtag_pattern = re.compile(r'#([a-zA-Z0-9_/-]+)')
         content_tags = hashtag_pattern.findall(content or '')
         tags.update(content_tags)
@@ -675,7 +783,6 @@ class NotesDatasetGenerator:
         links = []
 
         # Simple regex for wikilinks [[link]]
-        import re
         wikilink_pattern = re.compile(r'\[\[([^\]|]+)(?:\|[^\]]+)?\]\]')
         wikilinks = wikilink_pattern.findall(content)
         links.extend(wikilinks)
@@ -736,9 +843,121 @@ class NotesDatasetGenerator:
 
         return centrality_cache
 
+    def _compute_tfidf_features(self, note_data: NoteData) -> dict[str, any]:
+        """Compute TF-IDF features for a single note.
+        
+        Args:
+            note_data: Complete note information
+            
+        Returns:
+            Dictionary of TF-IDF features
+        """
+        features = {
+            'top_tfidf_terms': "",
+            'tfidf_vocabulary_richness': 0.0,
+            'avg_tfidf_score': 0.0
+        }
+        
+        if not self._semantic_analyzer_fitted or not note_data.content:
+            return features
+        
+        try:
+            # Get TF-IDF vector for this document
+            tfidf_vector = self.semantic_analyzer.compute_tfidf_features([note_data.content])
+            
+            if tfidf_vector.shape[0] > 0:
+                # Get document index (we need to find which document this is in the fitted corpus)
+                # For now, we'll compute features directly from the single document
+                
+                # Get top TF-IDF terms for this document
+                # Since we can't easily get the document index, we'll use a different approach
+                # We'll get the TF-IDF scores and feature names directly
+                
+                tfidf_scores = tfidf_vector.toarray().flatten()
+                feature_names = self.semantic_analyzer.tfidf_vectorizer.get_feature_names_out()
+                
+                # Get top terms
+                top_indices = np.argsort(tfidf_scores)[-10:][::-1]  # Top 10 terms
+                top_terms = []
+                for idx in top_indices:
+                    if tfidf_scores[idx] > 0:
+                        top_terms.append({
+                            'term': feature_names[idx],
+                            'score': float(tfidf_scores[idx])
+                        })
+                
+                # Convert to JSON string
+                import json
+                features['top_tfidf_terms'] = json.dumps(top_terms)
+                
+                # Calculate vocabulary richness (ratio of non-zero terms to total possible terms)
+                non_zero_terms = np.count_nonzero(tfidf_scores)
+                total_terms = len(feature_names)
+                features['tfidf_vocabulary_richness'] = non_zero_terms / total_terms if total_terms > 0 else 0.0
+                
+                # Calculate average TF-IDF score for non-zero terms
+                non_zero_scores = tfidf_scores[tfidf_scores > 0]
+                features['avg_tfidf_score'] = float(np.mean(non_zero_scores)) if len(non_zero_scores) > 0 else 0.0
+                
+        except Exception as e:
+            logger.warning(f"Failed to compute TF-IDF features for {note_data.path}: {e}")
+        
+        return features
+
+    def _compute_content_features(self, note_data: NoteData) -> dict[str, any]:
+        """Compute comprehensive content analysis features for a single note.
+        
+        Args:
+            note_data: Complete note information
+            
+        Returns:
+            Dictionary of content analysis features
+        """
+        features = {
+            'sentiment_score': 0.0,
+            'sentiment_label': 'neutral',
+            'readability_score': 0.0,
+            'readability_grade': 0.0,
+            'named_entities_json': "",
+            'entity_types_json': "",
+            'content_type': 'general',
+            'complexity_score': 0.0,
+            'vocabulary_richness': 0.0
+        }
+        
+        if not note_data.content or not note_data.content.strip():
+            return features
+        
+        try:
+            # Use the content analyzer to get comprehensive features
+            content_analysis = self.content_analyzer.analyze_content(note_data.content)
+            
+            # Map ContentFeatures to our dictionary format
+            features['sentiment_score'] = content_analysis.sentiment_score
+            features['sentiment_label'] = content_analysis.sentiment_label
+            features['readability_score'] = content_analysis.readability_score
+            features['readability_grade'] = content_analysis.readability_grade
+            features['content_type'] = content_analysis.content_type
+            features['complexity_score'] = content_analysis.complexity_score
+            features['vocabulary_richness'] = content_analysis.vocabulary_richness
+            
+            # Convert named entities to JSON string
+            import json
+            if content_analysis.named_entities:
+                features['named_entities_json'] = json.dumps(content_analysis.named_entities)
+            
+            # Convert entity types to JSON string
+            if content_analysis.entity_types:
+                features['entity_types_json'] = json.dumps(content_analysis.entity_types)
+                
+        except Exception as e:
+            logger.warning(f"Failed to compute content features for {note_data.path}: {e}")
+        
+        return features
+
     def _extract_note_features(self, note_data: NoteData, graph: nx.DiGraph,
                              centrality_cache: dict[str, CentralityMetrics]) -> NoteFeatures:
-        """Extract all features for a single note with comprehensive error handling.
+        """Extract all features for a single note using the FeatureEngineer.
         
         Args:
             note_data: Complete note information
@@ -746,7 +965,7 @@ class NotesDatasetGenerator:
             centrality_cache: Pre-computed centrality metrics
             
         Returns:
-            NoteFeatures object with all extracted features (with defaults for failed extractions)
+            NoteFeatures object with all extracted features
         """
         feature_errors = []
         
@@ -840,60 +1059,61 @@ class NotesDatasetGenerator:
                 logger.debug(f"Failed to calculate technical term density for {note_data.path}: {e}")
                 feature_errors.append("technical_term_density")
 
-            # Create NoteFeatures object with all features (using defaults for failed extractions)
-            try:
-                features = NoteFeatures(
-                    note_path=note_data.path,
-                    note_title=note_data.title or Path(note_data.path).stem,
-                    word_count=note_data.word_count or 0,
-                    tag_count=len(note_data.tags) if note_data.tags else 0,
-                    quality_stage=note_data.quality_stage or 'unknown',
-                    creation_date=note_data.creation_date or datetime.now(),
-                    last_modified=note_data.last_modified or datetime.now(),
-                    outgoing_links_count=len(note_data.outgoing_links) if note_data.outgoing_links else 0,
-                    incoming_links_count=incoming_links_count,
-                    betweenness_centrality=centrality_metrics.betweenness_centrality,
-                    closeness_centrality=centrality_metrics.closeness_centrality,
-                    pagerank_score=centrality_metrics.pagerank_score,
-                    clustering_coefficient=centrality_metrics.clustering_coefficient,
-                    semantic_cluster_id=-1,  # Would require clustering analysis
-                    semantic_summary=semantic_summary,
-                    file_size=file_size,
-                    # Enhanced frontmatter-derived features
-                    aliases_count=frontmatter_features['aliases_count'],
-                    domains_count=frontmatter_features['domains_count'],
-                    concepts_count=frontmatter_features['concepts_count'],
-                    sources_count=frontmatter_features['sources_count'],
-                    has_summary_field=frontmatter_features['has_summary_field'],
-                    progress_state=frontmatter_features['progress_state'],
-                    # Semantic relationship counts
-                    semantic_up_links=semantic_counts['up'],
-                    semantic_similar_links=semantic_counts['similar'],
-                    semantic_leads_to_links=semantic_counts['leads_to'],
-                    semantic_extends_links=semantic_counts['extends'],
-                    semantic_implements_links=semantic_counts['implements'],
-                    # Content analysis features
-                    heading_count=content_analysis['heading_count'],
-                    max_heading_depth=content_analysis['max_heading_depth'],
-                    technical_term_density=technical_term_density,
-                    concept_density_score=content_analysis['concept_density']
-                )
+            # Create base NoteFeatures object with traditional features
+            features = NoteFeatures(
+                note_path=note_data.path,
+                note_title=note_data.title or Path(note_data.path).stem,
+                word_count=note_data.word_count or 0,
+                tag_count=len(note_data.tags) if note_data.tags else 0,
+                quality_stage=note_data.quality_stage or 'unknown',
+                creation_date=note_data.creation_date or datetime.now(),
+                last_modified=note_data.last_modified or datetime.now(),
+                outgoing_links_count=len(note_data.outgoing_links) if note_data.outgoing_links else 0,
+                incoming_links_count=incoming_links_count,
+                betweenness_centrality=centrality_metrics.betweenness_centrality,
+                closeness_centrality=centrality_metrics.closeness_centrality,
+                pagerank_score=centrality_metrics.pagerank_score,
+                clustering_coefficient=centrality_metrics.clustering_coefficient,
+                semantic_cluster_id=-1,  # Would require clustering analysis
+                semantic_summary=semantic_summary,
+                file_size=file_size,
+                # Enhanced frontmatter-derived features
+                aliases_count=frontmatter_features['aliases_count'],
+                domains_count=frontmatter_features['domains_count'],
+                concepts_count=frontmatter_features['concepts_count'],
+                sources_count=frontmatter_features['sources_count'],
+                has_summary_field=frontmatter_features['has_summary_field'],
+                progress_state=frontmatter_features['progress_state'],
+                # Semantic relationship counts
+                semantic_up_links=semantic_counts['up'],
+                semantic_similar_links=semantic_counts['similar'],
+                semantic_leads_to_links=semantic_counts['leads_to'],
+                semantic_extends_links=semantic_counts['extends'],
+                semantic_implements_links=semantic_counts['implements'],
+                # Content analysis features
+                heading_count=content_analysis['heading_count'],
+                max_heading_depth=content_analysis['max_heading_depth'],
+                technical_term_density=technical_term_density,
+                concept_density_score=content_analysis['concept_density']
+            )
 
-                # Log feature extraction summary
-                if feature_errors:
-                    logger.info(f"Feature extraction for {note_data.path} completed with {len(feature_errors)} errors: {feature_errors}")
-                else:
-                    logger.debug(f"Feature extraction for {note_data.path} completed successfully")
+            # Extract enhanced features using FeatureEngineer
+            if self._feature_engineer_fitted:
+                try:
+                    enhanced_features = self.feature_engineer.extract_note_features(note_data)
+                    features = self.feature_engineer.update_note_features_with_enhanced(features, enhanced_features)
+                except Exception as e:
+                    logger.warning(f"Failed to extract enhanced features for {note_data.path}: {e}")
+                    feature_errors.append("enhanced_features")
 
-                return features
+            # Log feature extraction summary
+            if feature_errors:
+                logger.info(f"Feature extraction for {note_data.path} completed with {len(feature_errors)} errors: {feature_errors}")
+            else:
+                logger.debug(f"Feature extraction for {note_data.path} completed successfully")
 
-            except Exception as e:
-                logger.error(f"Failed to create NoteFeatures object for {note_data.path}: {e}")
-                raise FeatureEngineeringError(f"Failed to create features object: {e}") from e
+            return features
 
-        except FeatureEngineeringError:
-            # Re-raise FeatureEngineeringError as-is
-            raise
         except Exception as e:
             logger.error(f"Critical error extracting features for {note_data.path}: {e}")
             import traceback
@@ -1208,7 +1428,6 @@ class NotesDatasetGenerator:
                 analysis['content_type'] = 'project'
             
             # Extract technical terms (capitalized words, acronyms)
-            import re
             tech_pattern = re.compile(r'\b[A-Z][A-Za-z]*(?:[A-Z][a-z]*)*\b|\b[A-Z]{2,}\b')
             analysis['technical_terms'] = list(set(tech_pattern.findall(content)))
             
@@ -1247,7 +1466,6 @@ class NotesDatasetGenerator:
             
             # Extract from content (simple approach - could be enhanced with NLP)
             # Look for terms in bold or emphasized text
-            import re
             bold_pattern = re.compile(r'\*\*([^*]+)\*\*|\*([^*]+)\*')
             bold_matches = bold_pattern.findall(content)
             for match in bold_matches:
@@ -1721,7 +1939,14 @@ class NotesDatasetGenerator:
                             'heading_count': features.heading_count,
                             'max_heading_depth': features.max_heading_depth,
                             'technical_term_density': features.technical_term_density,
-                            'concept_density_score': features.concept_density_score
+                            'concept_density_score': features.concept_density_score,
+                            # Topic modeling features
+                            'dominant_topic_id': features.dominant_topic_id,
+                            'dominant_topic_probability': features.dominant_topic_probability,
+                            'topic_probabilities_json': features.topic_probabilities_json,
+                            'topic_label': features.topic_label,
+                            'topic_coherence_score': features.topic_coherence_score,
+                            'semantic_cluster_id_topic': features.semantic_cluster_id_topic
                         }
                         chunk_data.append(feature_dict)
                 
@@ -1845,8 +2070,137 @@ class NotesDatasetGenerator:
                     'heading_count': features.heading_count,
                     'max_heading_depth': features.max_heading_depth,
                     'technical_term_density': features.technical_term_density,
-                    'concept_density_score': features.concept_density_score
+                    'concept_density_score': features.concept_density_score,
+                    # Topic modeling features
+                    'dominant_topic_id': features.dominant_topic_id,
+                    'dominant_topic_probability': features.dominant_topic_probability,
+                    'topic_probabilities_json': features.topic_probabilities_json,
+                    'topic_label': features.topic_label,
+                    'topic_coherence_score': features.topic_coherence_score,
+                    'semantic_cluster_id_topic': features.semantic_cluster_id_topic
                 })
         
         return pd.DataFrame(data)
+
+    def _compute_topic_features(self, note_data: NoteData) -> dict[str, any]:
+        """Compute topic modeling features for a note.
+        
+        Args:
+            note_data: Complete note information
+            
+        Returns:
+            Dictionary containing topic modeling features
+        """
+        import json
+        
+        # Default topic features
+        topic_features = {
+            'dominant_topic_id': -1,
+            'dominant_topic_probability': 0.0,
+            'topic_probabilities_json': "",
+            'topic_label': "",
+            'topic_coherence_score': 0.0,
+            'semantic_cluster_id_topic': -1
+        }
+        
+        try:
+            # Skip if content is too short for meaningful topic modeling
+            if not note_data.content or len(note_data.content.split()) < 10:
+                logger.debug(f"Skipping topic modeling for {note_data.path}: content too short")
+                return topic_features
+            
+            # For individual note prediction, we need a fitted model
+            # If the model isn't fitted yet, we'll return default values
+            # The model will be fitted during batch processing
+            if not self._topic_model_fitted:
+                logger.debug(f"Topic model not fitted yet, returning default values for {note_data.path}")
+                return topic_features
+            
+            # Predict topics for this single document
+            documents = [note_data.content]
+            embeddings = None
+            
+            # Use existing embedding if available
+            if note_data.embedding is not None:
+                embeddings = note_data.embedding.reshape(1, -1)
+            
+            # Get topic predictions
+            topic_result = self.topic_modeler.predict_topics(documents, embeddings)
+            
+            if topic_result.topic_assignments and len(topic_result.topic_assignments) > 0:
+                # Get dominant topic
+                dominant_topic_id = topic_result.topic_assignments[0]
+                topic_features['dominant_topic_id'] = dominant_topic_id
+                
+                # Get topic probabilities
+                if topic_result.topic_probabilities and len(topic_result.topic_probabilities) > 0:
+                    probabilities = topic_result.topic_probabilities[0]
+                    topic_features['dominant_topic_probability'] = max(probabilities) if probabilities else 0.0
+                    topic_features['topic_probabilities_json'] = json.dumps(probabilities)
+                
+                # Get topic label
+                if dominant_topic_id in topic_result.topic_labels:
+                    topic_features['topic_label'] = topic_result.topic_labels[dominant_topic_id]
+                elif dominant_topic_id >= 0:
+                    topic_features['topic_label'] = f"Topic {dominant_topic_id}"
+                
+                # Use topic assignment as cluster ID
+                topic_features['semantic_cluster_id_topic'] = dominant_topic_id
+                
+                # Set coherence score from model if available
+                topic_features['topic_coherence_score'] = topic_result.coherence_score
+            
+            logger.debug(f"Topic features computed for {note_data.path}: topic {topic_features['dominant_topic_id']}")
+            
+        except Exception as e:
+            logger.warning(f"Failed to compute topic features for {note_data.path}: {e}")
+            # Return default values on error
+        
+        return topic_features
+
+    def fit_topic_model(self, notes_data: list[NoteData]) -> bool:
+        """Fit the topic model on all notes data.
+        
+        Args:
+            notes_data: List of all note data for fitting
+            
+        Returns:
+            True if model was fitted successfully, False otherwise
+        """
+        try:
+            # Extract documents for topic modeling
+            documents = []
+            embeddings_list = []
+            
+            for note_data in notes_data:
+                if note_data.content and len(note_data.content.split()) >= 10:
+                    documents.append(note_data.content)
+                    if note_data.embedding is not None:
+                        embeddings_list.append(note_data.embedding)
+            
+            if len(documents) < self.topic_modeler.min_topic_size:
+                logger.warning(f"Insufficient documents for topic modeling: {len(documents)} < {self.topic_modeler.min_topic_size}")
+                return False
+            
+            # Prepare embeddings if available
+            embeddings = None
+            if len(embeddings_list) == len(documents):
+                embeddings = np.vstack(embeddings_list)
+            
+            logger.info(f"Fitting topic model on {len(documents)} documents")
+            
+            # Fit the topic model
+            topic_result = self.topic_modeler.fit_topics(documents, embeddings)
+            
+            if topic_result.topic_count > 0:
+                self._topic_model_fitted = True
+                logger.info(f"Topic model fitted successfully with {topic_result.topic_count} topics")
+                return True
+            else:
+                logger.warning("Topic model fitting resulted in 0 topics")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Failed to fit topic model: {e}")
+            return False
 

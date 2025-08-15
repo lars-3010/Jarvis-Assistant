@@ -6,6 +6,7 @@ link extraction, feature engineering, and dataset creation for both
 individual notes and note pairs.
 """
 
+import re
 import time
 from datetime import datetime
 from pathlib import Path
@@ -73,16 +74,7 @@ class DatasetGenerator:
             output_dir = Path(output_dir).expanduser().resolve()
         self.output_dir = output_dir
 
-        # Validate inputs (unless skipped for testing)
-        if not skip_validation:
-            validation_result = self.validate_vault()
-            if not validation_result.valid:
-                raise VaultValidationError(
-                    f"Vault validation failed: {', '.join(validation_result.errors)}",
-                    vault_path=str(vault_path)
-                )
-
-        # Initialize services
+        # Initialize services first (needed for validation)
         try:
             self.vault_reader = VaultReader(str(vault_path), areas_only=self.areas_only)
             self.vector_encoder = VectorEncoder()
@@ -111,6 +103,15 @@ class DatasetGenerator:
         except Exception as e:
             logger.error(f"Failed to initialize DatasetGenerator: {e}")
             raise ConfigurationError(f"Service initialization failed: {e}") from e
+
+        # Validate inputs (unless skipped for testing) - after services are initialized
+        if not skip_validation:
+            validation_result = self.validate_vault()
+            if not validation_result.valid:
+                raise VaultValidationError(
+                    f"Vault validation failed: {', '.join(validation_result.errors)}",
+                    vault_path=str(vault_path)
+                )
 
     def generate_datasets(self,
                          notes_filename: str = "notes_dataset.csv",
@@ -169,6 +170,10 @@ class DatasetGenerator:
                 progress_callback("Discovering notes...", 1, 5)
 
             all_notes = [str(path) for path in self.vault_reader.get_markdown_files()]
+            
+            # Filter the link_graph to only include nodes from all_notes
+            if self.areas_only:
+                link_graph = link_graph.subgraph([node for node in link_graph.nodes() if node in all_notes]).copy()
             
             # Enhanced logging for filtered content discovery
             if self.areas_only:
@@ -720,7 +725,10 @@ class DatasetGenerator:
         """
         logger.info(f"Loading note data for {len(note_paths)} notes")
         notes_data = {}
+        valid_notes = []
+        note_contents = []
 
+        # First pass: load all note data without embeddings
         for note_path in note_paths:
             try:
                 # Read file content and metadata
@@ -740,7 +748,7 @@ class DatasetGenerator:
                 full_path = self.vault_reader.get_absolute_path(note_path)
                 file_stat = full_path.stat()
 
-                # Create NoteData object
+                # Create NoteData object (without embedding initially)
                 note_data = NoteData(
                     path=note_path,
                     title=title,
@@ -755,9 +763,37 @@ class DatasetGenerator:
                 )
 
                 notes_data[note_path] = note_data
+                
+                # Collect content for batch embedding generation
+                if content and content.strip():
+                    valid_notes.append(note_path)
+                    note_contents.append(content)
 
             except Exception as e:
                 logger.warning(f"Failed to load note data for {note_path}: {e}")
+
+        # Second pass: generate embeddings in batch for efficiency
+        logger.info(f"Generating embeddings for {len(valid_notes)} notes with content")
+        try:
+            if note_contents:
+                embeddings = self.vector_encoder.encode_documents(note_contents)
+                
+                # Assign embeddings back to note data
+                for i, note_path in enumerate(valid_notes):
+                    if i < len(embeddings):
+                        notes_data[note_path].embedding = embeddings[i]
+                    else:
+                        notes_data[note_path].embedding = None
+                        
+                logger.info(f"✅ Successfully generated {len(embeddings)} embeddings")
+            else:
+                logger.warning("No valid content found for embedding generation")
+                
+        except Exception as e:
+            logger.error(f"Failed to generate embeddings in batch: {e}")
+            # Set all embeddings to None if batch generation fails
+            for note_path in valid_notes:
+                notes_data[note_path].embedding = None
 
         logger.info(f"Successfully loaded {len(notes_data)} note data objects")
         return notes_data
@@ -775,7 +811,6 @@ class DatasetGenerator:
                 tags.add(meta_tags)
 
         # Extract hashtags from content
-        import re
         hashtag_pattern = re.compile(r'#([a-zA-Z0-9_/-]+)')
         content_tags = hashtag_pattern.findall(content or '')
         tags.update(content_tags)
@@ -790,7 +825,6 @@ class DatasetGenerator:
         links = []
 
         # Simple regex for wikilinks [[link]]
-        import re
         wikilink_pattern = re.compile(r'\[\[([^\]|]+)(?:\|[^\]]+)?\]\]')
         wikilinks = wikilink_pattern.findall(content)
         links.extend(wikilinks)
@@ -1025,7 +1059,7 @@ class DatasetGenerator:
                     result.errors.append(
                         f"Insufficient content in Areas/ folder: {len(markdown_files)} files found, "
                         f"but minimum {result.min_content_threshold} required for meaningful dataset generation. "
-                        f"Please add more markdown files to Areas/ subdirectories."
+                        f"Please add more markdown files to the '{result.areas_folder_name}' folder or its subdirectories."
                     )
                     return False
                 else:
@@ -1452,6 +1486,7 @@ class DatasetGenerator:
             # Check required columns
             required_columns = [
                 'note_a_path', 'note_b_path', 'link_exists', 'cosine_similarity',
+                'tfidf_similarity', 'combined_similarity',
                 'tag_overlap_count', 'tag_jaccard_similarity'
             ]
             missing_columns = [col for col in required_columns if col not in df.columns]

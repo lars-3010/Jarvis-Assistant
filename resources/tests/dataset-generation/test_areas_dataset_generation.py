@@ -1456,6 +1456,46 @@ class TestAreasFilteringErrorScenarios:
             shutil.rmtree(temp_dir)
 
 
+    def test_pairs_dataset_respects_areas_filtering(self, temp_output_dir, mock_vector_encoder):
+        """Test that the pairs dataset is correctly filtered with Areas/ filtering."""
+        temp_dir = tempfile.mkdtemp()
+        vault_path = Path(temp_dir) / "pairs_filtering_test_vault"
+        
+        try:
+            # Create vault with Areas/ and non-Areas/ content
+            vault_metadata = AreasTestVaultHelper.create_areas_test_vault(
+                vault_path, include_non_areas=True
+            )
+            
+            # Generate datasets with Areas/ filtering enabled
+            generator = DatasetGenerator(
+                vault_path=vault_path,
+                output_dir=temp_output_dir,
+                areas_only=True,
+                skip_validation=True
+            )
+            
+            with patch.object(generator.notes_generator, 'vector_encoder', mock_vector_encoder), \
+                 patch.object(generator.pairs_generator, 'vector_encoder', mock_vector_encoder):
+                
+                result = generator.generate_datasets()
+                assert result.success is True
+                
+                # Load pairs dataset
+                pairs_df = pd.read_csv(result.pairs_dataset_path)
+                
+                # Verify that all notes in pairs dataset are from Areas/ folder
+                for _, row in pairs_df.iterrows():
+                    assert "Areas/" in row['note_a_path'] or "Areas\\" in row['note_a_path']
+                    assert "Areas/" in row['note_b_path'] or "Areas\\" in row['note_b_path']
+                
+                print(f"✅ Pairs dataset filtering validation successful:")
+                print(f"  All {len(pairs_df)} pairs are from Areas/ folder")
+
+        finally:
+            shutil.rmtree(temp_dir)
+
+
 if __name__ == "__main__":
     # Run tests with pytest
     pytest.main([__file__, "-v"])

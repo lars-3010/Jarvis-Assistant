@@ -345,7 +345,7 @@ Based on [[machine_learning.md]] concepts.
         )
         
         # Verify the Areas filter is using the correct folder name
-        assert generator.areas_filter.areas_folder_name == "Areas", \
+        assert generator.vault_reader.areas_filter.areas_folder_name == "Areas", \
             "Areas filter should use configured folder name"
         
         print(f"✓ Areas folder name configuration working correctly:")

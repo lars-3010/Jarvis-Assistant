@@ -162,6 +162,8 @@ class StreamingDatasetWriter:
             'note_a_path': features.note_a_path,
             'note_b_path': features.note_b_path,
             'cosine_similarity': features.cosine_similarity,
+            'tfidf_similarity': features.tfidf_similarity,
+            'combined_similarity': features.combined_similarity,
             'semantic_cluster_match': features.semantic_cluster_match,
             'tag_overlap_count': features.tag_overlap_count,
             'tag_jaccard_similarity': features.tag_jaccard_similarity,

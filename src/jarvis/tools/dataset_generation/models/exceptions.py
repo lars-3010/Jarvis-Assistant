@@ -138,17 +138,16 @@ class AreasNotFoundError(VaultValidationError):
             areas_folder_name: Name of the expected Areas folder (default: "Areas")
         """
         message = (
-            f"Areas/ folder not found in vault: {vault_path}. "
-            f"Please create an Areas/ folder with knowledge content.\n\n"
-            f"To fix this issue:\n"
-            f"1. Create a folder named '{areas_folder_name}' in your vault root\n"
-            f"2. Organize your knowledge content into subdirectories within {areas_folder_name}/\n"
-            f"3. Example structure:\n"
-            f"   {areas_folder_name}/\n"
-            f"   ├── Computer Science/\n"
-            f"   ├── Natural Science/\n"
-            f"   └── Business/\n"
-            f"4. Move your structured knowledge notes into these subdirectories"
+            f"🔍 Areas/ folder not found in vault: {vault_path}\n\n"
+            f"📁 REQUIRED FOLDER STRUCTURE:\n"
+            f"Your vault needs an '{areas_folder_name}/' folder containing structured knowledge content.\n\n"
+            f"🛠️  QUICK SETUP GUIDE:\n"
+            f"1. Create folder: {vault_path}/{areas_folder_name}/\n"
+            f"2. Add knowledge subdirectories (e.g., Computer Science/, Business/)\n"
+            f"3. Move your best knowledge notes into these subdirectories\n"
+            f"4. Keep personal content (Journal/, People/) outside Areas/ for privacy\n\n"
+            f"💡 This ensures only structured knowledge is used for dataset generation,\n"
+            f"   protecting your personal journals and private notes."
         )
         super().__init__(message, vault_path, "areas_not_found")
         self.areas_folder_name = areas_folder_name
@@ -168,18 +167,21 @@ class InsufficientAreasContentError(InsufficientDataError):
             required_minimum: Minimum number of files required for dataset generation
         """
         message = (
-            f"Insufficient notes in Areas/ folder: {areas_count} < {required_minimum}. "
-            f"Please add more knowledge content to Areas/ subdirectories.\n\n"
-            f"Current status:\n"
-            f"- Areas/ folder found at: {areas_folder_path}\n"
-            f"- Markdown files found: {areas_count}\n"
-            f"- Minimum required: {required_minimum}\n\n"
-            f"To fix this issue:\n"
-            f"1. Add more markdown (.md) files to your Areas/ subdirectories\n"
-            f"2. Ensure your knowledge content is properly organized in Areas/\n"
-            f"3. Move relevant notes from other folders (Journal/, Inbox/, etc.) to Areas/\n"
-            f"4. Create new knowledge notes in appropriate Areas/ subdirectories\n"
-            f"5. Verify that your .md files contain substantial content (not just empty files)"
+            f"📊 Insufficient content in Areas/ folder: {areas_count} < {required_minimum} notes\n\n"
+            f"📁 CURRENT STATUS:\n"
+            f"• Areas/ folder found: {areas_folder_path}\n"
+            f"• Markdown files found: {areas_count}\n"
+            f"• Minimum required: {required_minimum}\n\n"
+            f"🛠️  HOW TO ADD MORE CONTENT:\n"
+            f"1. Move knowledge notes from other folders:\n"
+            f"   • Journal/ → Areas/ (for knowledge entries)\n"
+            f"   • Inbox/ → Areas/ (for processed knowledge)\n"
+            f"   • Root folder → Areas/ (for unorganized knowledge)\n"
+            f"2. Create new knowledge notes in Areas/ subdirectories\n"
+            f"3. Ensure .md files contain substantial content (not empty)\n"
+            f"4. Organize content into knowledge domains (Computer Science/, Business/, etc.)\n\n"
+            f"💡 Focus on moving your best knowledge content to Areas/ first.\n"
+            f"   Personal journals and private notes should stay outside Areas/ for privacy."
         )
         super().__init__(message, required_minimum, areas_count)
         self.areas_folder_path = areas_folder_path

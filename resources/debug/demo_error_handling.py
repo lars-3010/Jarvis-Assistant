@@ -8,10 +8,14 @@ provided by the enhanced database initialization error handling.
 
 import tempfile
 from pathlib import Path
+import sys
 
-from src.jarvis.utils.database_errors import DatabaseErrorHandler
-from src.jarvis.services.database_initializer import DatabaseInitializer
-from src.jarvis.utils.config import JarvisSettings
+# Add the src directory to the path
+sys.path.insert(0, '../../src')
+
+from jarvis.utils.database_errors import DatabaseErrorHandler
+from jarvis.services.database_initializer import DatabaseInitializer
+from jarvis.utils.config import JarvisSettings
 
 
 def demo_missing_database_error():

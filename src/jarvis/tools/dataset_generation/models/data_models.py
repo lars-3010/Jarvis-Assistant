@@ -131,6 +131,27 @@ class NoteFeatures:
     max_heading_depth: int = 0
     technical_term_density: float = 0.0
     concept_density_score: float = 0.0
+    # TF-IDF features
+    top_tfidf_terms: str = ""  # JSON string of top terms and scores
+    tfidf_vocabulary_richness: float = 0.0  # Ratio of unique terms to total terms
+    avg_tfidf_score: float = 0.0  # Average TF-IDF score for the document
+    # Content analysis features
+    sentiment_score: float = 0.0  # -1 (negative) to 1 (positive)
+    sentiment_label: str = "neutral"  # positive, negative, neutral
+    readability_score: float = 0.0  # Flesch Reading Ease (0-100)
+    readability_grade: float = 0.0  # Grade level
+    named_entities_json: str = ""  # JSON string of named entities
+    entity_types_json: str = ""  # JSON string of entity type counts
+    content_type: str = "general"  # technical, academic, creative, etc.
+    complexity_score: float = 0.0  # 0-1 normalized complexity
+    vocabulary_richness: float = 0.0  # unique/total ratio
+    # Topic modeling features
+    dominant_topic_id: int = -1  # ID of the dominant topic
+    dominant_topic_probability: float = 0.0  # Probability of dominant topic
+    topic_probabilities_json: str = ""  # JSON string of all topic probabilities
+    topic_label: str = ""  # Human-readable topic label
+    topic_coherence_score: float = 0.0  # Topic coherence score
+    semantic_cluster_id_topic: int = -1  # Cluster ID based on topic features
 
     def __post_init__(self):
         """Post-initialization processing."""
@@ -145,6 +166,8 @@ class PairFeatures:
     note_a_path: str
     note_b_path: str
     cosine_similarity: float
+    tfidf_similarity: float
+    combined_similarity: float
     semantic_cluster_match: bool
     tag_overlap_count: int
     tag_jaccard_similarity: float
@@ -162,6 +185,10 @@ class PairFeatures:
     same_folder: bool = False
     content_length_ratio: float = 1.0
     title_similarity: float = 0.0
+    # Topic modeling features
+    topic_similarity: float = 0.0  # Similarity based on topic probabilities
+    same_dominant_topic: bool = False  # Whether both notes have the same dominant topic
+    topic_coherence_avg: float = 0.0  # Average topic coherence of both notes
 
     def __post_init__(self):
         """Post-initialization processing."""

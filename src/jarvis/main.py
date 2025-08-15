@@ -34,7 +34,18 @@ logger = setup_logging(__name__)
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging')
 @click.pass_context
 def cli(ctx: click.Context, verbose: bool) -> None:
-    """Jarvis Assistant - AI-augmented learning system."""
+    """Jarvis Assistant - AI-augmented learning system.
+    
+    🔒 Privacy-focused knowledge management with semantic search and dataset generation.
+    
+    Key features:
+    • Semantic search across your Obsidian vault
+    • Privacy-focused dataset generation (Areas/ folder only by default)
+    • Graph-based relationship discovery
+    • MCP integration for AI assistants like Claude Desktop
+    
+    For dataset generation, ensure your vault has an Areas/ folder with structured knowledge content.
+    """
     ctx.ensure_object(dict)
     ctx.obj['verbose'] = verbose
     
@@ -507,7 +518,7 @@ def graph_search(uri: Optional[str], user: Optional[str], password: Optional[str
 @click.option('--output', type=click.Path(path_type=Path),
               help='Output directory for datasets (default: ~/Developer/Projects/Data-Analysis/datasets)')
 @click.option('--areas-only/--full-vault', default=None,
-              help='Process only Areas/ folder content (default: enabled for privacy). Use --full-vault to process entire vault.')
+              help='Process only Areas/ folder content for privacy (default: enabled). Use --full-vault to process entire vault.')
 @click.option('--areas-folder', type=str, default=None,
               help='Name of the areas folder to process (default: Areas)')
 @click.option('--notes-filename', type=str, default='notes_dataset.csv',
@@ -529,11 +540,29 @@ def generate_dataset(ctx: click.Context, vault: Optional[Path], output: Optional
                     sampling: str, batch_size: int, max_pairs: int) -> None:
     """Generate machine learning datasets from Obsidian vault.
     
-    By default, processes only Areas/ folder content for privacy protection.
-    Personal content (Journal/, Inbox/, People/, etc.) is excluded unless --full-vault is used.
+    🔒 PRIVACY-FOCUSED DATASET GENERATION
     
-    The default output directory is ~/Developer/Projects/Data-Analysis/datasets for
-    better organization with data analysis projects.
+    By default, processes only Areas/ folder content to protect your privacy.
+    Personal content (Journal/, Inbox/, People/, etc.) is automatically excluded.
+    
+    📁 AREAS/ FOLDER REQUIREMENT
+    Your vault must contain an Areas/ folder with structured knowledge content:
+    
+        Areas/
+        ├── Computer Science/
+        ├── Natural Science/
+        ├── Business/
+        └── [other knowledge domains]/
+    
+    If your Areas/ folder doesn't exist or is empty, the command will provide
+    specific guidance on how to set it up.
+    
+    📂 OUTPUT LOCATION
+    Datasets are saved to ~/Developer/Projects/Data-Analysis/datasets by default
+    for better organization with data analysis projects.
+    
+    🌐 FULL VAULT MODE
+    Use --full-vault to process all vault content (not recommended for privacy).
     """
     
     # Enable debug logging if verbose
@@ -615,16 +644,90 @@ def generate_dataset(ctx: click.Context, vault: Optional[Path], output: Optional
                 click.echo(f"[{step}/{total}] ({percentage:.1f}%) {message}")
         
         # Initialize and run dataset generator with Areas/ filtering configuration
-        with DatasetGenerator(vault_path, output_dir, areas_only=areas_filtering_enabled) as generator:
-            result = generator.generate_datasets(
-                notes_filename=notes_filename,
-                pairs_filename=pairs_filename,
-                negative_sampling_ratio=negative_ratio,
-                sampling_strategy=sampling,
-                batch_size=batch_size,
-                max_pairs_per_note=max_pairs,
-                progress_callback=progress_callback
-            )
+        try:
+            generator = DatasetGenerator(vault_path, output_dir, areas_only=areas_filtering_enabled)
+        except Exception as init_error:
+            # Handle Areas/ folder setup errors with specific guidance
+            from jarvis.tools.dataset_generation.models.exceptions import AreasNotFoundError, InsufficientAreasContentError
+            
+            if isinstance(init_error, AreasNotFoundError):
+                click.echo("\n" + "="*60)
+                click.echo("❌ AREAS/ FOLDER NOT FOUND")
+                click.echo("="*60)
+                click.echo(f"The required Areas/ folder was not found in your vault:")
+                click.echo(f"📁 Vault Path: {vault_path}")
+                click.echo(f"🔍 Expected: {vault_path}/{areas_folder_name}/")
+                click.echo("")
+                click.echo("🛠️  HOW TO FIX:")
+                click.echo("1. Create an Areas/ folder in your vault root")
+                click.echo("2. Organize your knowledge content into subdirectories:")
+                click.echo("")
+                click.echo("   Example structure:")
+                click.echo(f"   {vault_path}/")
+                click.echo(f"   ├── {areas_folder_name}/")
+                click.echo("   │   ├── Computer Science/")
+                click.echo("   │   │   ├── Programming.md")
+                click.echo("   │   │   └── Algorithms.md")
+                click.echo("   │   ├── Natural Science/")
+                click.echo("   │   │   ├── Physics.md")
+                click.echo("   │   │   └── Chemistry.md")
+                click.echo("   │   └── Business/")
+                click.echo("   │       └── Strategy.md")
+                click.echo("   ├── Journal/          # ← Will be excluded for privacy")
+                click.echo("   ├── Inbox/            # ← Will be excluded for privacy")
+                click.echo("   └── People/           # ← Will be excluded for privacy")
+                click.echo("")
+                click.echo("3. Move your structured knowledge notes into Areas/ subdirectories")
+                click.echo("4. Keep personal content (journals, people, etc.) outside Areas/")
+                click.echo("")
+                click.echo("💡 TIP: Use --full-vault if you want to process all content (not recommended)")
+                sys.exit(1)
+                
+            elif isinstance(init_error, InsufficientAreasContentError):
+                click.echo("\n" + "="*60)
+                click.echo("❌ INSUFFICIENT AREAS/ CONTENT")
+                click.echo("="*60)
+                click.echo(f"Your Areas/ folder exists but doesn't have enough content:")
+                click.echo(f"📁 Areas Path: {init_error.areas_folder_path}")
+                click.echo(f"📊 Files Found: {init_error.areas_count}")
+                click.echo(f"📊 Minimum Required: {init_error.required_minimum}")
+                click.echo("")
+                click.echo("🛠️  HOW TO FIX:")
+                click.echo("1. Add more markdown (.md) files to your Areas/ subdirectories")
+                click.echo("2. Ensure your knowledge content is properly organized:")
+                click.echo("")
+                click.echo("   Move content from other folders:")
+                click.echo("   • Journal/ → Areas/ (for knowledge entries)")
+                click.echo("   • Inbox/ → Areas/ (for processed knowledge)")
+                click.echo("   • Root folder → Areas/ (for unorganized knowledge)")
+                click.echo("")
+                click.echo("3. Create new knowledge notes in appropriate Areas/ subdirectories")
+                click.echo("4. Verify your .md files contain substantial content (not empty)")
+                click.echo("")
+                click.echo("💡 TIP: Focus on moving your best knowledge content to Areas/ first")
+                sys.exit(1)
+            else:
+                # Re-raise other initialization errors
+                raise init_error
+        
+        # Now run the dataset generation
+        try:
+            with generator:
+                result = generator.generate_datasets(
+                    notes_filename=notes_filename,
+                    pairs_filename=pairs_filename,
+                    negative_sampling_ratio=negative_ratio,
+                    sampling_strategy=sampling,
+                    batch_size=batch_size,
+                    max_pairs_per_note=max_pairs,
+                    progress_callback=progress_callback
+                )
+        except Exception as generation_error:
+            logger.error(f"Dataset generation failed: {generation_error}")
+            click.echo(f"Error during dataset generation: {str(generation_error)}")
+            import traceback
+            logger.error(f"Full traceback:\n{traceback.format_exc()}")
+            sys.exit(1)
         
         # Display results
         if result.success:
@@ -699,4 +802,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    main()
     main()
