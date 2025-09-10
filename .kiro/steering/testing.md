@@ -1,233 +1,210 @@
 # Testing Standards & Quality Assurance
 
 ## Testing Philosophy
-- **Test-Driven Development**: Write tests before implementation when possible
-- **Comprehensive Coverage**: Aim for >90% code coverage with meaningful tests
-- **Fast Feedback**: Unit tests should run in <30 seconds, integration tests in <5 minutes
-- **Realistic Testing**: Use real data patterns and edge cases from actual vaults
+- **Strategic Testing**: Focus on critical paths and high-risk areas, not exhaustive coverage
+- **Minimal Effective Coverage**: Test what matters - core functionality, edge cases, and integration points
+- **Fast Feedback**: All tests should run in <60 seconds total
+- **Pragmatic Approach**: Write tests that prevent real bugs, not just increase coverage numbers
 
-## Test Structure & Organization
+## What to Test (Priority Order)
 
-### Test Directory Layout
+### 1. Critical User Paths (Must Test)
+- MCP tool endpoints that users directly interact with
+- Core search functionality (semantic, keyword, combined)
+- Vault indexing and file parsing
+- Error handling for common failure scenarios
+
+### 2. High-Risk Areas (Should Test)
+- Database operations and connection handling
+- File system operations and edge cases
+- Performance bottlenecks and memory usage
+- Configuration and service initialization
+
+### 3. Skip Testing (Don't Waste Time)
+- Simple getters/setters and property access
+- Trivial utility functions with no business logic
+- Third-party library integrations (trust their tests)
+- Internal implementation details that don't affect behavior
+
+### Test Structure (Simplified)
 ```
 resources/tests/
-├── unit/                   # Fast, isolated unit tests
-│   ├── test_vector_service.py
-│   ├── test_graph_indexer.py
-│   └── test_mcp_tools.py
-├── integration/            # End-to-end integration tests
-│   ├── test_search_workflow.py
-│   └── test_vault_indexing.py
-└── mcp/                   # MCP protocol-specific tests
-    ├── test_mcp_server.py
-    └── test_tool_responses.py
+├── test_mcp_tools.py       # All MCP endpoints in one file
+├── test_search_core.py     # Core search functionality
+├── test_vault_ops.py       # File operations and indexing
+└── test_integration.py     # End-to-end critical paths
 ```
 
-### Test Naming Conventions
-- Test files: `test_{module_name}.py`
-- Test classes: `Test{ClassName}`
-- Test methods: `test_{what_is_being_tested}_{expected_outcome}`
-- Example: `test_semantic_search_returns_relevant_results()`
+## Minimal Testing Patterns
 
-## Unit Testing Standards
-
-### Test Isolation
-- Mock all external dependencies (databases, file system, network)
-- Use dependency injection for testable code
-- Reset state between tests
-- No shared test data between test methods
-
-### Test Data Management
+### Focus on Behavior, Not Implementation
 ```python
-# Use fixtures for reusable test data
-@pytest.fixture
-def sample_vault_notes():
-    return [
-        {"path": "note1.md", "content": "Sample content", "tags": ["test"]},
-        {"path": "note2.md", "content": "Another note", "tags": ["example"]}
-    ]
-
-# Use factories for dynamic test data
-def create_test_document(title="Test", content="Content"):
-    return Document(title=title, content=content, created_at=datetime.now())
-```
-
-### Assertion Patterns
-```python
-# Prefer specific assertions over generic ones
-assert result.status == "success"  # Good
-assert result  # Too generic
-
-# Test both positive and negative cases
-def test_search_finds_relevant_results():
-    results = search_service.search("python")
+# Good: Test the behavior users care about
+def test_search_returns_relevant_results():
+    results = search_service.search("python programming")
     assert len(results) > 0
-    assert all("python" in r.content.lower() for r in results)
+    assert any("python" in r.content.lower() for r in results)
 
-def test_search_returns_empty_for_nonexistent_term():
-    results = search_service.search("xyznonexistent")
-    assert len(results) == 0
+# Skip: Testing internal implementation details
+# def test_search_calls_embedding_service_with_correct_params()  # Don't do this
 ```
 
-## Integration Testing Standards
-
-### Database Testing
-- Use test databases (separate DuckDB files)
-- Clean up test data after each test
-- Test with realistic data volumes
-- Verify database schema migrations
-
-### File System Testing
-- Use temporary directories for test vaults
-- Create realistic vault structures
-- Test with various file encodings and formats
-- Clean up test files after execution
-
-### MCP Protocol Testing
+### Test Happy Path + One Error Case
 ```python
-# Test MCP tool responses
-async def test_semantic_search_tool():
-    request = {
-        "method": "tools/call",
-        "params": {
-            "name": "search_semantic",
-            "arguments": {"query": "machine learning", "limit": 5}
-        }
-    }
-    
-    response = await mcp_server.handle_request(request)
-    
+# Test the main success scenario
+def test_mcp_search_tool_success():
+    response = mcp_server.search_semantic("machine learning", limit=5)
     assert response["success"] is True
-    assert "results" in response["data"]
     assert len(response["data"]["results"]) <= 5
-    assert "metadata" in response
+
+# Test one critical error scenario
+def test_mcp_search_tool_handles_invalid_vault():
+    response = mcp_server.search_semantic("query", vault="nonexistent")
+    assert response["success"] is False
+    assert "not found" in response["error"]["message"]
 ```
 
-## Performance Testing
-
-### Response Time Testing
+### Simple Test Data
 ```python
-import time
+# Keep test data minimal and inline
+def test_vault_indexing():
+    test_notes = [
+        ("note1.md", "# Python\nPython is great"),
+        ("note2.md", "# JavaScript\nJS is also good")
+    ]
+    
+    vault = create_temp_vault(test_notes)
+    index_service.index_vault(vault)
+    
+    results = search_service.search("python")
+    assert len(results) == 1
+    assert "note1.md" in results[0].path
+```
 
-def test_search_performance():
+## Integration Testing (Minimal Approach)
+
+### One End-to-End Test Per Critical Path
+```python
+def test_complete_search_workflow():
+    """Single test covering: vault setup -> indexing -> search -> results"""
+    # Setup minimal test vault
+    vault_path = create_test_vault([
+        ("ai.md", "# AI\nArtificial intelligence is fascinating"),
+        ("python.md", "# Python\nPython programming language")
+    ])
+    
+    # Index the vault
+    indexer.index_vault(vault_path)
+    
+    # Test search works end-to-end
+    results = mcp_server.search_semantic("artificial intelligence")
+    
+    assert results["success"] is True
+    assert len(results["data"]["results"]) > 0
+    assert "ai.md" in results["data"]["results"][0]["path"]
+```
+
+### Skip Detailed Integration Testing
+- Don't test every combination of services
+- Don't test database schema details
+- Don't test file encoding edge cases unless they've caused real bugs
+- Trust that individual components work if unit tests pass
+
+## Performance Testing (Only When Needed)
+
+### Skip Performance Tests Unless There's a Problem
+- Don't write performance tests preemptively
+- Add them only when users report slow performance
+- Focus on real bottlenecks, not theoretical ones
+
+### Simple Performance Check (If Needed)
+```python
+def test_search_not_extremely_slow():
+    """Only test if search is catastrophically slow (>30 seconds)"""
     start_time = time.time()
     results = search_service.search("test query")
     elapsed = time.time() - start_time
     
-    assert elapsed < 5.0  # Should complete within 5 seconds
-    assert len(results) > 0
+    assert elapsed < 30.0  # Catch only catastrophic slowness
+    assert len(results) >= 0  # Just ensure it doesn't crash
 ```
 
-### Memory Usage Testing
+## Error Testing (Only Critical Errors)
+
+### Test User-Facing Errors Only
 ```python
-import psutil
-import os
+# Good: Test errors users will encounter
+def test_mcp_tool_handles_missing_vault():
+    response = mcp_server.search_semantic("query", vault="missing")
+    assert response["success"] is False
+    assert "vault" in response["error"]["message"].lower()
 
-def test_memory_usage_within_limits():
-    process = psutil.Process(os.getpid())
-    initial_memory = process.memory_info().rss
-    
-    # Perform memory-intensive operation
-    large_search_results = search_service.search_large_vault()
-    
-    final_memory = process.memory_info().rss
-    memory_increase = final_memory - initial_memory
-    
-    # Should not increase memory by more than 100MB
-    assert memory_increase < 100 * 1024 * 1024
+# Skip: Internal error handling details
+# def test_database_connection_retry_logic()  # Don't test this
 ```
 
-## Error Testing Standards
+### One Error Test Per Tool
+- Test one common error scenario per MCP tool
+- Focus on errors that affect user experience
+- Skip testing internal error recovery mechanisms
 
-### Exception Testing
+## Test Data (Keep It Simple)
+
+### Minimal Test Data
 ```python
-def test_search_handles_invalid_vault_path():
-    with pytest.raises(VaultNotFoundError) as exc_info:
-        search_service.search_vault("/nonexistent/path", "query")
-    
-    assert "not found" in str(exc_info.value)
-    assert exc_info.value.error_code == "VAULT_NOT_FOUND"
+# Good: Simple, inline test data
+def test_search():
+    notes = [("test.md", "# Test\nSome content")]
+    vault = create_temp_vault(notes)
+    # ... rest of test
+
+# Skip: Complex test data generation
+# Don't create elaborate test data factories unless absolutely necessary
 ```
 
-### Error Recovery Testing
-```python
-def test_service_recovers_from_database_failure():
-    # Simulate database failure
-    with mock.patch('jarvis.database.connection_pool.get_connection') as mock_conn:
-        mock_conn.side_effect = DatabaseConnectionError()
-        
-        # Service should handle gracefully
-        result = search_service.search("query")
-        assert result.status == "error"
-        assert "database unavailable" in result.message
-```
+### Use Real Examples When Needed
+- Copy actual problematic files when debugging specific issues
+- Keep a small set of real vault examples for integration tests
+- Don't generate synthetic data unless testing scale
 
-## Test Data Management
+## Continuous Integration (Streamlined)
 
-### Realistic Test Data
-- Use actual Obsidian vault structures
-- Include various note formats (markdown, frontmatter, links)
-- Test with different vault sizes (small, medium, large)
-- Include edge cases (empty notes, very long notes, special characters)
-
-### Test Data Generation
-```python
-def generate_test_vault(num_notes=100, avg_size=1000):
-    """Generate realistic test vault with specified characteristics"""
-    vault_path = tempfile.mkdtemp()
-    
-    for i in range(num_notes):
-        note_path = os.path.join(vault_path, f"note_{i:03d}.md")
-        content = generate_realistic_note_content(avg_size)
-        
-        with open(note_path, 'w') as f:
-            f.write(content)
-    
-    return vault_path
-```
-
-## Continuous Integration Standards
-
-### Pre-commit Hooks
+### Pre-commit Hooks (Essential Only)
 - Run linting (ruff) and formatting
-- Execute fast unit tests
 - Type checking with mypy
-- Security scanning
+- Run critical tests only (< 30 seconds)
 
-### CI Pipeline Requirements
+### CI Pipeline (Fast and Focused)
 ```bash
-# Quality checks that must pass
+# Essential quality checks
 uv run ruff check src/ --no-fix
 uv run ruff format src/ --check
 uv run mypy src/
-uv run pytest resources/tests/unit/ --cov=src/jarvis --cov-fail-under=90
-uv run pytest resources/tests/integration/ --maxfail=5
+uv run pytest resources/tests/ --maxfail=3 -x  # Stop on first 3 failures
 ```
 
-### Test Environment Setup
-- Isolated test environments for each PR
-- Consistent Python version (3.11+)
-- Clean database state for each test run
-- Proper cleanup of test artifacts
+### Skip Heavy CI Setup
+- Don't require isolated test environments for every PR
+- Don't run full test suites on every commit
+- Focus on code quality and critical functionality only
 
-## Coverage Requirements
+## Coverage Requirements (Realistic Targets)
 
-### Coverage Targets
-- **Unit Tests**: >90% line coverage
-- **Integration Tests**: >80% feature coverage
-- **Critical Paths**: 100% coverage (search, indexing, MCP tools)
+### Coverage Philosophy
+- **Ignore Coverage Metrics**: Don't chase coverage percentages
+- **Focus on Critical Code**: Ensure MCP tools and core search work
+- **Quality Over Quantity**: Better to have 10 good tests than 100 meaningless ones
 
-### Coverage Exclusions
-- Third-party code
-- Configuration files
-- Development utilities
-- Deprecated code marked for removal
+### What Coverage Actually Means
+- 60% coverage of critical paths > 95% coverage of everything
+- Test the code that would break the user experience
+- Skip coverage reporting unless debugging test gaps
 
-### Coverage Reporting
+### Coverage Reporting (Optional)
 ```bash
-# Generate coverage reports
-uv run pytest --cov=src/jarvis --cov-report=html --cov-report=term
-uv run coverage xml  # For CI integration
+# Only run coverage when investigating test gaps
+uv run pytest --cov=src/jarvis/mcp --cov-report=term-missing
+# Focus on specific modules, not the entire codebase
 ```
 
 ## Test Maintenance

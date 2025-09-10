@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "name": "Test Stub Generator",
+  "description": "Automatically generates test stubs for new MCP tools and services following minimal testing philosophy - creates success case tests, error case tests, and mock service dependencies",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "src/jarvis/mcp/plugins/tools/*.py",
+      "src/jarvis/services/**/*_service.py"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A new MCP tool or service has been created. Generate test stubs following the minimal testing philosophy:\n\n1. Analyze the new file to understand its functionality\n2. Create test stubs that include:\n   - One success case test (happy path)\n   - One critical error case test\n   - Mock service dependencies if needed\n3. Follow the pattern:\n   ```python\n   # Auto-generated test stub for {filename}\n   def test_{function_name}_success():\n       \"\"\"Test successful {operation}\"\"\"\n       # Happy path test\n       \n   def test_{function_name}_handles_{error_condition}():\n       \"\"\"Test error handling for {error_scenario}\"\"\"\n       # One critical error case\n   ```\n4. Focus on user-facing behavior, not implementation details\n5. Keep tests simple and focused on what matters\n6. Add to appropriate test file in resources/tests/\n\nGenerate the test stub code and suggest where it should be placed."
+  }
+}

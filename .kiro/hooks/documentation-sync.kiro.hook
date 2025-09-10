@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "Documentation Sync",
+  "description": "Automatically updates API documentation when MCP tool schemas change, ensuring docs stay in sync with code changes",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "src/jarvis/mcp/plugins/tools/*.py"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "MCP tool schema changes detected in the following files: {changed_files}\n\nPlease analyze the schema changes and perform the following documentation sync tasks:\n\n1. **Update API Documentation**: Review the tool schema changes and update the corresponding API documentation in docs/06-reference/api-reference.md to reflect any parameter changes, new tools, or modified response formats.\n\n2. **Sync Tool Descriptions**: Ensure tool descriptions in the documentation match the actual tool implementations, including parameter types, required/optional status, and return value structures.\n\n3. **Validate Example Usage**: Check and update code examples in the documentation to ensure they work with the current tool schemas. Update any examples that reference changed parameters or response formats.\n\n4. **Check Parameter Documentation**: Verify that all tool parameters are properly documented with correct types, descriptions, and validation rules. Add documentation for any new parameters and remove documentation for deprecated ones.\n\nFocus on maintaining accuracy between the actual MCP tool implementations and their documentation. Ensure that developers and users have up-to-date information about tool capabilities and usage patterns."
+  }
+}

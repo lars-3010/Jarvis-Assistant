@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "Service Integration Guardian",
+  "description": "Monitors service class modifications to ensure they follow dependency injection patterns, implement proper interfaces, are registered in the container, handle errors correctly, and follow caching and performance patterns",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "src/jarvis/services/**/*.py"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A service class has been modified in the jarvis services directory. Please analyze the changes and ensure:\n\n1. **Interface Implementation**: Verify the service implements the appropriate interface from jarvis.core.interfaces or jarvis.services.interfaces\n2. **Container Registration**: Check that the service is properly registered in the dependency injection container (jarvis.core.container)\n3. **Error Handling**: Ensure proper error handling with custom exceptions from jarvis.utils.errors and graceful degradation patterns\n4. **Caching Patterns**: Validate that expensive operations use appropriate caching (LRU cache, TTL cache, or database caching)\n5. **Performance Patterns**: Check for batch processing, memory monitoring, and timeout handling where appropriate\n\nFocus on:\n- Service inherits from Service or BaseService base classes\n- Proper dependency injection usage with get_service() calls\n- Structured error responses following MCP standards\n- Performance optimizations for operations that could be slow\n- Proper logging and monitoring integration\n\nProvide specific recommendations for any issues found, including code examples of the correct patterns to follow."
+  }
+}

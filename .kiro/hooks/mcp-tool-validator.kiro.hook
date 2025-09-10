@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "MCP Tool Validator",
+  "description": "Validates MCP tool definitions for proper schema, error handling, service integration, response format compliance, and input sanitization when tools are created or modified",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "src/jarvis/mcp/plugins/tools/*.py"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Review the modified MCP tool file and validate it follows all required patterns:\n\n1. **Tool Definition Schema**: Verify the tool has proper inputSchema with validation using Pydantic models\n2. **Error Handling**: Check that it uses structured error responses following the common-patterns.md format with error codes, messages, and suggestions\n3. **Service Integration**: Ensure it properly uses dependency injection to access services and handles service unavailability gracefully\n4. **Response Format Compliance**: Validate it returns structured JSON responses with success/error format as defined in mcp-standards.md\n5. **Input Sanitization**: Confirm all user inputs are properly validated and sanitized following security.md patterns\n6. **Performance Requirements**: Verify operations complete within 15-second timeout limits\n7. **Logging Integration**: Check for proper structured logging with timing and context information\n\nProvide specific feedback on any violations and suggest corrections based on the established patterns in the codebase."
+  }
+}

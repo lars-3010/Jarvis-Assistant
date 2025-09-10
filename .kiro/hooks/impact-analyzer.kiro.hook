@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "Impact Analyzer",
+  "description": "Automatically triggers when service interface changes are detected in interfaces.py to identify all affected components, find implementations, check for breaking changes, and suggest migration steps",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "src/jarvis/core/interfaces.py"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A service interface has been modified in src/jarvis/core/interfaces.py. Please analyze the impact of these changes by:\n\n1. **Find All Implementations**: Scan the codebase to identify all classes that implement the modified interfaces\n2. **Identify Affected Tests**: Find all test files that test the modified interfaces or their implementations\n3. **Check Breaking Changes**: Analyze if the interface changes are backward compatible or introduce breaking changes\n4. **Suggest Migration Steps**: Provide specific steps to update affected code and maintain compatibility\n\nFocus on:\n- Service implementations in src/jarvis/services/\n- MCP tool implementations that use these services\n- Database adapters and extensions\n- Test files that mock or test these interfaces\n- Any dependency injection registrations\n\nProvide actionable recommendations with code examples where helpful."
+  }
+}
