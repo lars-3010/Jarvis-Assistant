@@ -1,4 +1,5 @@
-**MCP Tool Commands**
+**MCP Tool Commands**  
+Docs version: 0.2.0 • Snapshot: 2025-09-13
 - Summary: Current built‑in MCP tools, their purpose, and input parameters to help AI integrations call them consistently.
 
 **search-semantic**

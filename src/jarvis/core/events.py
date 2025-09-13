@@ -6,6 +6,7 @@ to events, enabling loose coupling and reactive behavior across services.
 """
 
 import asyncio
+import threading
 import json
 import time
 import uuid
@@ -277,13 +278,15 @@ class EventBus:
 
         self._subscriptions: dict[str, EventSubscription] = {}
         self._subscriptions_by_type: dict[str, set[str]] = {}
-        self._event_queue: asyncio.Queue = asyncio.Queue()
-        self._dead_letter_queue: asyncio.Queue = asyncio.Queue()
+        self._event_queue: asyncio.Queue | None = None
+        self._dead_letter_queue: asyncio.Queue | None = None
         self._processor_task: asyncio.Task | None = None
         self._dead_letter_task: asyncio.Task | None = None
         self._running = False
         self._semaphore = asyncio.Semaphore(max_concurrent_handlers)
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._thread: threading.Thread | None = None
+        self._loop_ready: threading.Event | None = None
 
         logger.info("Event bus initialized")
 
@@ -296,12 +299,33 @@ class EventBus:
         # Capture the running loop for thread-safe publishing
         try:
             self._loop = asyncio.get_running_loop()
+            # Queues bound to this loop
+            self._event_queue = asyncio.Queue()
+            self._dead_letter_queue = asyncio.Queue()
+            self._processor_task = asyncio.create_task(self._process_events())
+            self._dead_letter_task = asyncio.create_task(self._process_dead_letters())
+            logger.info("Event bus started (asyncio loop)")
         except RuntimeError:
-            self._loop = None
-        self._processor_task = asyncio.create_task(self._process_events())
-        self._dead_letter_task = asyncio.create_task(self._process_dead_letters())
+            # No running asyncio loop (e.g., Trio). Start a dedicated background loop.
+            def _run_loop():
+                loop = asyncio.new_event_loop()
+                self._loop = loop
+                asyncio.set_event_loop(loop)
+                # Create queues in this loop
+                self._event_queue = asyncio.Queue()
+                self._dead_letter_queue = asyncio.Queue()
+                self._processor_task = loop.create_task(self._process_events())
+                self._dead_letter_task = loop.create_task(self._process_dead_letters())
+                if self._loop_ready:
+                    self._loop_ready.set()
+                loop.run_forever()
 
-        logger.info("Event bus started")
+            self._loop_ready = threading.Event()
+            self._thread = threading.Thread(target=_run_loop, name="EventBusLoop", daemon=True)
+            self._thread.start()
+            # Wait briefly for loop to start
+            self._loop_ready.wait(timeout=1.0)
+            logger.info("Event bus started (dedicated background loop)")
 
     async def stop(self):
         """Stop the event bus."""
@@ -310,22 +334,41 @@ class EventBus:
 
         self._running = False
 
-        if self._processor_task:
-            self._processor_task.cancel()
-            try:
-                await self._processor_task
-            except asyncio.CancelledError:
-                pass
+        # If running in a dedicated background loop (thread), stop it
+        if self._thread and self._loop and not self._loop.is_closed():
+            def _cancel_and_stop():
+                if self._processor_task:
+                    self._processor_task.cancel()
+                if self._dead_letter_task:
+                    self._dead_letter_task.cancel()
+                try:
+                    self._loop.stop()
+                except Exception:
+                    pass
 
-        if self._dead_letter_task:
-            self._dead_letter_task.cancel()
-            try:
-                await self._dead_letter_task
-            except asyncio.CancelledError:
-                pass
+            self._loop.call_soon_threadsafe(_cancel_and_stop)
+            self._thread.join(timeout=2.0)
+            self._thread = None
+            self._loop = None
+            logger.info("Event bus stopped (background loop)")
+        else:
+            # Normal asyncio loop cancellation
+            if self._processor_task:
+                self._processor_task.cancel()
+                try:
+                    await self._processor_task
+                except asyncio.CancelledError:
+                    pass
 
-        logger.info("Event bus stopped")
-        self._loop = None
+            if self._dead_letter_task:
+                self._dead_letter_task.cancel()
+                try:
+                    await self._dead_letter_task
+                except asyncio.CancelledError:
+                    pass
+
+            logger.info("Event bus stopped")
+            self._loop = None
 
     async def publish(self, event: Event) -> bool:
         """Publish an event to the bus.
@@ -340,12 +383,38 @@ class EventBus:
             logger.warning("Event bus not running, cannot publish event")
             return False
 
+        # If running on a different loop (background thread), publish thread-safely
+        try:
+            current_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            current_loop = None
+
+        if self._loop and current_loop is not self._loop:
+            try:
+                if self.event_store:
+                    asyncio.run_coroutine_threadsafe(self.event_store.store_event(event), self._loop)
+                if self._event_queue is not None:
+                    asyncio.run_coroutine_threadsafe(self._event_queue.put(event), self._loop)
+
+                if self.metrics:
+                    self.metrics.record_counter(
+                        "event_bus.events_published",
+                        tags={"event_type": event.event_type, "priority": event.priority.name},
+                    )
+                return True
+            except Exception as e:
+                logger.error(f"Failed cross-loop publish for event {event.event_id}: {e}")
+                return False
+
+        # Same-loop async publish
         try:
             # Store event if event store is configured
             if self.event_store:
                 await self.event_store.store_event(event)
 
             # Add to processing queue
+            if self._event_queue is None:
+                self._event_queue = asyncio.Queue()
             await self._event_queue.put(event)
 
             # Record metrics
@@ -497,8 +566,8 @@ class EventBus:
                 event_type: len(sub_ids)
                 for event_type, sub_ids in self._subscriptions_by_type.items()
             },
-            "queue_size": self._event_queue.qsize(),
-            "dead_letter_queue_size": self._dead_letter_queue.qsize(),
+            "queue_size": self._event_queue.qsize() if self._event_queue else 0,
+            "dead_letter_queue_size": self._dead_letter_queue.qsize() if self._dead_letter_queue else 0,
             "max_concurrent_handlers": self.max_concurrent_handlers
         }
 
@@ -619,7 +688,7 @@ class EventBus:
                 try:
                     event, subscription = await asyncio.wait_for(
                         self._dead_letter_queue.get(),
-                        timeout=1.0
+                        timeout=1.0,
                     )
                 except TimeoutError:
                     continue

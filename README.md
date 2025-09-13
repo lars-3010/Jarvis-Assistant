@@ -4,12 +4,29 @@ Local‑first MCP server that lets AI systems (e.g., Claude Desktop) search, und
 
 ![High Level Architecture](resources/images/high-level-architecture.svg)
 
+Project version: 0.2.0  
+Docs snapshot: 2025-09-13
+
 ## What It Does
 
 - Turns your vault into an AI‑friendly knowledge source with MCP tools.
 - Answers queries using semantic similarity, exact text, and graph relations.
 - Returns structured JSON so downstream automations can parse reliably.
 - Works fully offline; optional Neo4j enables relationship queries.
+
+## Goal & Use Cases
+
+Jarvis Assistant’s goal is to make your personal knowledge base usable by AI agents as a reliable, automatable system of record — without sending your data to the cloud. It exposes your Obsidian vault via the Model Context Protocol (MCP) with predictable schemas so agents can search, reason, and act on your notes safely.
+
+- Who it’s for: knowledge workers, researchers, and developers using Obsidian who want AI‑assisted retrieval, synthesis, and automation with privacy by default.
+- Non‑goals: a generic chat bot or hosted SaaS; Jarvis is a local tool server focused on structured actions over your data.
+
+Typical scenarios
+- Research and Q&A: Ask conceptual questions; retrieve relevant passages and linked notes combining semantic + keyword + graph evidence.
+- Domain exploration: Map knowledge domains, clusters, and bridges in a vault to discover gaps or connect ideas (Graph/Analytics tools).
+- Note operations: Read specific notes with metadata, headings, and links so agents can cite, summarize, or refactor safely.
+- Workflow automation: Use structured outputs (`schema_version`, `correlation_id`) in downstream scripts and automations.
+- Health and observability: Inspect performance metrics and analytics cache freshness to keep agent behavior predictable.
 
 ## Key Capabilities
 
@@ -19,6 +36,11 @@ Local‑first MCP server that lets AI systems (e.g., Claude Desktop) search, und
 - **Vault Ops**: Read notes, list vaults, surface health and performance
 - **Structured Results**: Shared schemas, `schema_version`, `correlation_id`
 - **Event‑Driven Analytics**: Cache invalidation on file changes for freshness
+
+Why this approach
+- Privacy: Local‑first by default; vectors in DuckDB; optional Neo4j for relationships.
+- Reliability: All tools return structured JSON for deterministic parsing by agents.
+- Extensibility: Plugin registry + schema manager make new tools easy to add safely.
 
 ## Prerequisites
 
@@ -172,6 +194,7 @@ Claude Desktop → MCP Server → Plugins (Registry) → Services → Databases/
 - **Permission denied**: On Unix: `chmod +x .venv/bin/jarvis-mcp-stdio`
 - **Vault not found**: Use absolute paths only
 - **Server won't start**: Test with `uv run jarvis --help`
+ - **Server won't start**: Test with `uv run jarvis-mcp-stdio --help`
 
 ## Documentation
 
@@ -185,6 +208,21 @@ Key Concepts
 - Analytics Engine: `src/jarvis/services/analytics/service.py`
 - Search Services: `src/jarvis/services/search/`
 - GraphRAG MVP: `src/jarvis/services/graphrag/`, tool: `src/jarvis/mcp/plugins/tools/search_graphrag.py`
+
+AI Docs
+- Project Overview (AI‑focused): `ai-docs/overview.md`
+- MCP Tool Reference: `ai-docs/mcp-tools.md`
+
+## Changelog
+
+- v0.2.0 — 2025-09-13
+  - Split heavy features into `src/jarvis/features/` with import shims under `src/jarvis/services/` (analytics, graphrag)
+  - Integrated MCP `PluginRegistry` for list/execute; server is declarative
+  - Defaulted to DI path; removed traditional context path
+  - Stabilized structured responses; JSON format available across key tools
+  - Added GraphRAG MVP tool (`search-graphrag`); continued performance/quality work
+  - Maintained compatibility for analytics cache tools; event-driven invalidation planned
+  - Began Pydantic v2 cleanup across models and extensions
 
 User Configuration
 - Place overrides in `config/local.yaml`; base defaults in `config/base.yaml`.

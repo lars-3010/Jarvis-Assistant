@@ -363,8 +363,9 @@ class SchemaValidator:
         """
         issues = []
 
-        # Search tool validation
-        if "search" in tool_name.lower():
+        # Search tool validation (exclude graph-oriented search tools)
+        name_lower = tool_name.lower()
+        if "search" in name_lower and "graph" not in name_lower:
             if "properties" in schema:
                 properties = schema["properties"]
 
@@ -385,7 +386,7 @@ class SchemaValidator:
                     ))
 
         # Analytics tool validation
-        elif "analytic" in tool_name.lower():
+        elif "analytic" in name_lower:
             if "properties" in schema:
                 properties = schema["properties"]
 

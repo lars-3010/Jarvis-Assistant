@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, Template, TemplateError
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from jarvis.utils.logging import setup_logging
 
@@ -49,8 +49,8 @@ class PromptVariables(BaseModel):
     timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
     model_name: str | None = None
 
-    class Config:
-        use_enum_values = True
+    # Pydantic v2 configuration
+    model_config = ConfigDict(use_enum_values=True)
 
 
 class PromptTemplateManager:

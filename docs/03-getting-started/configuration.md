@@ -409,6 +409,34 @@ METRICS_FILE=/path/to/metrics/jarvis_metrics.json
 METRICS_INTERVAL=60
 ```
 
+#### Analytics Cache Invalidation Metric
+
+When analytics caches are cleared (explicitly or due to file changes), Jarvis emits a counter metric you can export or query:
+
+- Name: `analytics.cache.invalidations`
+- Tags: `cache_type`, `reason`, `vault_name`
+
+Example snapshot from the in-memory metrics store (JSON):
+
+```json
+{
+  "uptime_seconds": 1234.5,
+  "timestamp": 1726212345.123,
+  "metrics": {
+    "analytics.cache.invalidations_cache_type_analytics_cache_reason_explicit_invalidation_vault_name_*": {
+      "count": 3,
+      "total_time": 0.0,
+      "errors": 0,
+      "last_recorded": 1726212344.987,
+      "avg_time": 0.0
+    }
+  }
+}
+```
+
+- Export via MCP tool: `get-performance-metrics` (JSON), optionally filter by prefix `analytics.cache.invalidations`.
+- Prometheus-style mapping: split the metric key on `_` to extract tags or adapt via a custom exporter.
+
 #### Health Checks
 ```bash
 # Enable health check endpoint

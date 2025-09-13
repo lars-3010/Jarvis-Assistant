@@ -486,6 +486,50 @@ class SearchEventHandler:
         return self._search_stats.copy()
 
 
+class CacheEventHandler:
+    """Event handler for cache-related events (metrics, observability)."""
+
+    def __init__(self, metrics: IMetrics | None = None):
+        self.metrics = metrics
+        self.event_bus = get_event_bus()
+        self._subscription_ids: list[str] = []
+
+    async def start(self):
+        cache_filter = EventFilter(event_types={EventTypes.CACHE_CLEARED})
+        sub_id = self.event_bus.subscribe(
+            self._handle_cache_event,
+            cache_filter,
+            is_async=True,
+        )
+        self._subscription_ids.append(sub_id)
+
+    async def stop(self):
+        for sub_id in self._subscription_ids:
+            self.event_bus.unsubscribe(sub_id)
+        self._subscription_ids.clear()
+
+    async def _handle_cache_event(self, event: Event):
+        try:
+            data = event.data or {}
+            cache_type = data.get("cache_type", "unknown")
+            reason = data.get("reason", "unspecified")
+            vault_name = data.get("vault_name", "*")
+
+            if self.metrics:
+                self.metrics.record_counter(
+                    "analytics.cache.invalidations",
+                    value=1,
+                    tags={
+                        "cache_type": cache_type,
+                        "reason": reason,
+                        "vault_name": vault_name,
+                    },
+                )
+        except Exception:
+            # Metrics should never break core functionality
+            pass
+
+
 class EventIntegrationManager:
     """Manager for all event integrations."""
 
@@ -503,6 +547,7 @@ class EventIntegrationManager:
         self.service_event_handler = ServiceEventHandler(service_registry)
         self.vault_event_handler = VaultEventHandler(metrics)
         self.search_event_handler = SearchEventHandler(metrics)
+        self.cache_event_handler = CacheEventHandler(metrics)
         self._running = False
 
         logger.info("Event integration manager initialized")
@@ -515,6 +560,7 @@ class EventIntegrationManager:
         await self.service_event_handler.start()
         await self.vault_event_handler.start()
         await self.search_event_handler.start()
+        await self.cache_event_handler.start()
 
         self._running = True
         logger.info("Event integration manager started")
@@ -527,6 +573,7 @@ class EventIntegrationManager:
         await self.service_event_handler.stop()
         await self.vault_event_handler.stop()
         await self.search_event_handler.stop()
+        await self.cache_event_handler.stop()
 
         self._running = False
         logger.info("Event integration manager stopped")

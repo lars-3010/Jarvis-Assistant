@@ -33,8 +33,8 @@ cd jarvis-assistant
 # Install dependencies using UV
 uv sync
 
-# Verify installation
-uv run jarvis --help
+# Verify MCP stdio entrypoint
+uv run jarvis-mcp-stdio --help
 ```
 
 ### Environment Configuration
@@ -193,7 +193,7 @@ uv run jarvis mcp --vault ./resources/test_vault --watch
 
 ```bash
 # Core development commands
-uv run jarvis --help                 # Show all commands
+uv run jarvis-mcp-stdio --help       # Show stdio MCP server usage
 uv run jarvis index --vault /path    # Index vault for development
 uv run jarvis mcp --vault /path      # Start MCP server
 uv run jarvis graph-index --vault /path  # Index graph data

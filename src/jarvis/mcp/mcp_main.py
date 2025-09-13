@@ -73,8 +73,8 @@ async def main():
         # Get settings
         settings = get_settings()
 
-        # Run the MCP server
-        await run_mcp_server(vaults, db_path, settings)
+        # Run the MCP server (enable watch mode from settings)
+        await run_mcp_server(vaults, db_path, settings, watch=settings.vault_watch)
 
     except Exception as e:
         logger.error(f"Failed to start MCP server: {e}")

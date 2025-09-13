@@ -35,7 +35,6 @@ class SchemaIntegrator:
     def __init__(self):
         """Initialize schema integrator."""
         self.schema_manager = get_schema_manager()
-        self.schema_registry = get_schema_registry(self.schema_manager)
         self._registered_plugins: dict[str, str] = {}
 
         logger.info("Schema integrator initialized")
@@ -51,9 +50,7 @@ class SchemaIntegrator:
         """
         plugin_name = plugin.name
 
-        if plugin_name in self._registered_plugins:
-            logger.debug(f"Plugin schema already registered: {plugin_name}")
-            return True
+        # Always (re)register schema to keep registry state authoritative and fresh
 
         try:
             # Get schema from plugin
@@ -70,8 +67,12 @@ class SchemaIntegrator:
             # Determine category based on plugin type and tags
             category = self._infer_plugin_category(plugin)
 
-            # Register with schema registry
-            success = self.schema_registry.register_tool_schema(
+            # Register with schema registry (always re-register; idempotent at manager level)
+            # Fetch the current (possibly reset) schema registry
+            from .registry import get_schema_registry as _get_schema_registry
+            schema_registry = _get_schema_registry(self.schema_manager)
+
+            success = schema_registry.register_tool_schema(
                 tool_name=plugin_name,
                 schema=schema,
                 description=plugin.description,
@@ -81,7 +82,7 @@ class SchemaIntegrator:
 
             if success:
                 self._registered_plugins[plugin_name] = category
-                logger.info(f"Registered schema for plugin: {plugin_name} (category: {category})")
+                logger.info(f"(Re)registered schema for plugin: {plugin_name} (category: {category})")
 
             return success
 
@@ -99,7 +100,9 @@ class SchemaIntegrator:
         Returns:
             True if validation passes
         """
-        validation_result = self.schema_registry.validate_tool_input(plugin_name, input_data)
+        from .registry import get_schema_registry as _get_schema_registry
+        schema_registry = _get_schema_registry(self.schema_manager)
+        validation_result = schema_registry.validate_tool_input(plugin_name, input_data)
 
         if not validation_result.is_valid:
             logger.error(f"Input validation failed for {plugin_name}:")

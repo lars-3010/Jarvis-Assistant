@@ -78,7 +78,7 @@ ls -la
 uv sync
 
 # Verify installation
-uv run jarvis --help
+uv run jarvis-mcp-stdio --help
 ```
 
 #### Step 3: Verify Installation

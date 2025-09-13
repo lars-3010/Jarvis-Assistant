@@ -484,7 +484,7 @@ ps aux | grep jarvis      # Running processes
 
 # Check configuration
 env | grep JARVIS         # Environment variables
-uv run jarvis --help      # Command availability
+uv run jarvis-mcp-stdio --help      # Verify MCP stdio entrypoint
 
 # Check database
 ls -la data/              # Database files

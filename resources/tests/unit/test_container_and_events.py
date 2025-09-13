@@ -69,7 +69,5 @@ async def test_publish_event_threadsafe_smoke():
 
 # Compatibility wrapper to avoid importing asyncio in test header
 async def asyncio_sleep(delay: float):
-    import asyncio as _asyncio
-
-    await _asyncio.sleep(delay)
-
+    import anyio
+    await anyio.sleep(delay)

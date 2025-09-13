@@ -621,7 +621,7 @@ nslookup localhost
 #### Check System Status
 ```bash
 # Check all services
-uv run jarvis --help
+uv run jarvis-mcp-stdio --help
 uv run jarvis list-vaults
 
 # Check database

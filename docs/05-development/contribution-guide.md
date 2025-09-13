@@ -44,7 +44,7 @@ Before contributing, ensure you have:
    uv run pre-commit install
    
    # Verify installation
-   uv run jarvis --help
+   uv run jarvis-mcp-stdio --help
    ```
 
 3. **Configure Remote**

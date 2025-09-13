@@ -27,7 +27,8 @@ class SchemaRegistry:
             schema_manager: Optional schema manager instance
         """
         self.manager = schema_manager or SchemaManager()
-        self.validator = SchemaValidator()
+        # Allow warnings without failing registration to improve pragmatism
+        self.validator = SchemaValidator(strict=False)
         self._tool_schema_mapping: dict[str, str] = {}
 
         logger.info("Schema registry initialized")

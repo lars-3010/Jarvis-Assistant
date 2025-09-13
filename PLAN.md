@@ -4,48 +4,17 @@ Version: 2025-09-13 • Owner: Core Team • Status: Active
 
 This single document consolidates and supersedes PLAN.md, analysis.md, and Refactoring.md. It combines strategy, architecture analysis, and the refactoring/migration plan into one living roadmap, updated to the current codebase state.
 
----
-
-## Executive Summary
-
-Goal: A robust, local‑first MCP server with structured outputs, a lean core platform, and optional heavy features (analytics, GraphRAG, AI). We prioritize clarity, spec‑driven development, and fast iteration without sacrificing maintainability.
-
-Near‑term focus:
-- Structured data everywhere (JSON‑first with shared schemas, markdown as a view)
-- Analytics freshness via events and cache invalidation, with explicit confidence/freshness indicators
-- Practical GraphRAG MVP (semantic → graph expansion → rerank → structured outputs)
-- Continued cleanup: boundaries, DI‑first wiring, and docs
-
----
-
-## Latest Changes (since last revision)
-
-- Features split completed with shims:
-  - Moved analytics to `jarvis.features.analytics.*` with import shims under `jarvis.services.analytics.*` to preserve existing imports
-  - Moved GraphRAG to `jarvis.features.graphrag.*` with import shims under `jarvis.services.graphrag.*`
-- DI wiring updated:
-  - `IVaultAnalyticsService` is now registered by the container (when enabled) via the services shim, which resolves to the features implementation
-- Plugin compatibility:
-  - `get_analytics_cache_status` now returns legacy fields (e.g., `total_size_mb`, `levels`, `freshness_indicators`) for existing MCP tools
+## Open Tasks
 
 What remains open:
-- Verify/extend analytics event wiring across file-change emitters (partial: service subscribes and invalidates cache)
-- Reduce remaining Pydantic v2 warnings (in progress)
-- Docs sweep for any remaining legacy references (in progress)
+- Reduce remaining Pydantic v2 warnings (monitor during runtime/tests)
+- Docs sweep for any remaining legacy references (continue incremental)
+- Continue schema standardization as new tools are added; enforce via checklist/tests
+- EventBus trio-compatibility: finalize cross-loop lifecycle and test stability in full suite
 
 New findings (code audit — 2025‑09‑13):
-- DI container registration bugs:
-  - `_register_graph_database()` calls `self.register(IGraphDatabase, factory=graph_db_factory, singleton=True)` without an implementation param — this will raise at runtime.
-  - `_register_vector_database()` registers with `implementation=VectorDatabase` without importing it in that branch.
-  - Recommendation: add a `register_factory(interface, factory, *, singleton=True)` helper or make `implementation` optional when `factory` is provided, and fix both call sites.
-- Pydantic v2 migrations incomplete in extensions:
-  - `src/jarvis/extensions/interfaces.py` still uses v1 `class Config` and mutable defaults (`[]`, `{}`). Replace with `model_config = ConfigDict(...)` and `Field(default_factory=...)`.
-- Logging duplication/inconsistency:
-  - `mcp/mcp_main.py` configures logging via `basicConfig` while `utils/logging.py` provides centralized config. Unify on `configure_root_logging` and remove duplicate handlers.
 - Schema standardization gaps:
   - Some tools (e.g., `search-combined`) define `inputSchema` inline. Migrate to `jarvis.mcp.schemas` templates and add a `format: "json|markdown"` switch for consistency.
-- Event system lifecycle:
-  - Background worker publishes events from a thread (`_asyncio.run(...)`). Ensure the event bus is started before any publish; consider an `ensure_event_bus_running()` guard and a no-op queueing fallback when not running.
 
 ---
 

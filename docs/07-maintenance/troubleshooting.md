@@ -33,7 +33,7 @@ uv --version
 
 # Check Jarvis installation
 echo "2. Checking Jarvis installation..."
-uv run jarvis --help > /dev/null 2>&1 && echo "✅ Jarvis CLI working" || echo "❌ Jarvis CLI failed"
+uv run jarvis-mcp-stdio --help > /dev/null 2>&1 && echo "✅ MCP stdio entrypoint available" || echo "❌ MCP stdio entrypoint failed"
 
 # Check environment variables
 echo "3. Checking environment variables..."

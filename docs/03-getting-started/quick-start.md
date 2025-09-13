@@ -46,7 +46,7 @@ cd jarvis-assistant
 uv sync
 
 # Verify installation
-uv run jarvis --help
+uv run jarvis-mcp-stdio --help
 ```
 
 ## 3. Index Your Vault (local run)
@@ -201,7 +201,7 @@ Once configured, Claude Desktop has access to these tools:
 
 ```bash
 # Get help
-uv run jarvis --help
+uv run jarvis-mcp-stdio --help
 
 # Check system status
 uv run jarvis stats --vault /path/to/vault
@@ -225,7 +225,7 @@ uv run jarvis --verbose mcp --vault /path/to/vault
 
 ## Success Indicators
 
-✅ **Installation successful**: `uv run jarvis --help` shows available commands  
+✅ **Installation successful**: `uv run jarvis-mcp-stdio --help` prints usage  
 ✅ **Indexing works**: See progress bar and "Vector index created successfully"  
 ✅ **Search works**: `uv run jarvis search` returns relevant results  
 ✅ **MCP server starts**: No errors when running `uv run jarvis mcp`  

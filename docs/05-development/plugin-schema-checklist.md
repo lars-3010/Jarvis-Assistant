@@ -30,3 +30,10 @@ machine-friendly defaults, and easy client integration.
   - Add/extend the registry smoke test to validate new schemas
   - Prefer unit tests that exercise tool argument parsing and formatter payloads
 
+## Enforcement
+
+- Lint check (manual): search for inline `inputSchema = { ... }` or direct JSON dicts in plugins.
+  - Command: `rg -n "inputSchema=|input_schema\s*=\s*\{" src/jarvis/mcp/plugins/tools`
+  - All tools should source schemas from `jarvis.mcp.schemas` helpers.
+- Review: PRs adding tools must link to the schema helper used and the schema config.
+- Test gate: registry smoke test should instantiate all tools and validate their `inputSchema` against JSON Schema draft (already covered by schema manager utilities).

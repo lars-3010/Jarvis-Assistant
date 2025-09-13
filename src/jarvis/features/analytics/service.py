@@ -13,7 +13,12 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from jarvis.core.event_integration import EventTypes
-from jarvis.core.events import Event, EventFilter, get_event_bus
+from jarvis.core.events import (
+    Event,
+    EventFilter,
+    get_event_bus,
+    publish_event_threadsafe,
+)
 from jarvis.core.interfaces import (
     IGraphDatabase,
     IMetrics,
@@ -255,6 +260,19 @@ class VaultAnalyticsService(IVaultAnalyticsService):
 
     async def invalidate_cache(self, vault_name: str | None = None) -> bool:
         self.cache.clear()
+        # Broadcast cache-cleared event so other components can react
+        try:
+            publish_event_threadsafe(
+                EventTypes.CACHE_CLEARED,
+                {
+                    "cache_type": "analytics_cache",
+                    "vault_name": vault_name or "*",
+                    "reason": "explicit_invalidation",
+                },
+                source="analytics_service",
+            )
+        except Exception:
+            pass
         return True
 
     async def get_recommendations(self, vault_name: str = "default", limit: int = 10) -> Dict[str, Any]:
@@ -304,5 +322,19 @@ class VaultAnalyticsService(IVaultAnalyticsService):
         try:
             # Invalidate caches on vault-related events
             self.cache.clear()
+            # Notify the system that analytics cache was cleared due to a vault change
+            try:
+                publish_event_threadsafe(
+                    EventTypes.CACHE_CLEARED,
+                    {
+                        "cache_type": "analytics_cache",
+                        "vault_name": event.data.get("vault_name", "unknown"),
+                        "path": event.data.get("path"),
+                        "reason": event.data.get("operation", "vault_event"),
+                    },
+                    source="analytics_service",
+                )
+            except Exception:
+                pass
         except Exception:
             pass
