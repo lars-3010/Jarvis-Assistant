@@ -10,9 +10,9 @@ from typing import Any
 
 import yaml
 
-from jarvis.utils.logging import setup_logging
+import logging
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 # Regular expressions for Markdown elements
 FRONTMATTER_PATTERN = r"^---\s*\n(.*?)\n---\s*\n"

@@ -9,10 +9,10 @@ import time
 from collections import OrderedDict
 from typing import Any
 
-from jarvis.utils.logging import setup_logging
+import logging
 from mcp import types
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class MCPToolCache:

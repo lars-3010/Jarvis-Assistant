@@ -49,12 +49,12 @@ New MCP server context that:
 - **Better Resource Management**: Automatic service lifecycle handling
 - **Enhanced Monitoring**: Built-in service health and metrics
 
-### 4. Backward Compatibility (`src/jarvis/mcp/server.py`)
+### 4. Default Server Path (`src/jarvis/mcp/server.py`)
 
-The MCP server now supports both architectures:
-- **Feature Flag Controlled**: `JARVIS_USE_DEPENDENCY_INJECTION=true`
-- **Gradual Migration**: Old and new systems work side by side
-- **Zero Downtime**: No breaking changes to existing functionality
+The MCP server now always uses the container-aware (DI) context. The legacy
+"traditional" context has been removed from the server code path. The
+`JARVIS_USE_DEPENDENCY_INJECTION` setting remains for compatibility in
+configuration but is a no-op.
 
 ### 5. Configuration Support (`src/jarvis/utils/config.py`)
 
@@ -95,15 +95,10 @@ Complete test suite with:
 
 ## Usage
 
-### Enable Dependency Injection
+### Dependency Injection
 
-```bash
-# Environment variable
-export JARVIS_USE_DEPENDENCY_INJECTION=true
-
-# Or in .env file
-JARVIS_USE_DEPENDENCY_INJECTION=true
-```
+No action required: DI is enabled by default. The `JARVIS_USE_DEPENDENCY_INJECTION`
+flag is deprecated and has no effect on server behavior.
 
 ### Custom Service Registration
 
@@ -179,8 +174,7 @@ All implementation has been tested and validated:
 uv run pytest resources/tests/unit/test_service_container.py -v
 uv run pytest resources/tests/integration/test_dependency_injection_integration.py -v
 
-# Enable DI and test MCP server
-export JARVIS_USE_DEPENDENCY_INJECTION=true
+# Start MCP server (DI is default)
 uv run jarvis mcp --vault /path/to/vault
 ```
 

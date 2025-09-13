@@ -15,10 +15,10 @@ from jarvis.mcp.structured import health_status_to_json
 from jarvis.utils.errors import PluginError
 
 # Lazy import to avoid circular dependencies
-from jarvis.utils.logging import setup_logging
+import logging
 from mcp import types
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class HealthStatusPlugin(UtilityPlugin):

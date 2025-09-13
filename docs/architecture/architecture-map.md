@@ -56,7 +56,7 @@ Claude Desktop → MCP Server → Services → Databases / Filesystem
   - Plugin registry exists; server still manually lists tools → integrate to reduce duplication
 
 - DI Adoption
-  - Container-aware context is present → consider making it default with fallback to traditional context
+  - Dependency Injection is the default path; the traditional context has been removed. Use the container-aware context throughout.
 
 ## Key Files (by role)
 

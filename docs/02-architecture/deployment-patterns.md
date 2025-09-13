@@ -510,7 +510,7 @@ services:
       - ./vault:/app/vault:ro
       - jarvis_data:/app/data
     environment:
-      - JARVIS_USE_DEPENDENCY_INJECTION=true
+      # DI is the default path; no flag needed
       - JARVIS_VECTOR_DB_PATH=/data/jarvis.duckdb
       - JARVIS_NEO4J_URI=bolt://neo4j:7687
       - JARVIS_VAULT_PATH=/vaults

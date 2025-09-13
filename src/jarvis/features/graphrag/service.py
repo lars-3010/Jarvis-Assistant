@@ -10,13 +10,13 @@ from jarvis.core.interfaces import IGraphDatabase, IMetrics, IVaultReader, IVect
 from jarvis.models.document import SearchResult
 from jarvis.services.search.ranking import ResultRanker
 from jarvis.utils.errors import ServiceError
-from jarvis.utils.logging import setup_logging
+import logging
 
 from .graph_fetcher import GraphNeighborhoodFetcher
 from .reranker import GraphRAGReranker
 from .retriever import GraphRAGRetriever
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -480,4 +480,3 @@ class GraphRAGService:
             },
             search_path=[],
         )
-

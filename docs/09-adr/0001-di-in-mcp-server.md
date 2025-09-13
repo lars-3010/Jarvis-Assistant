@@ -13,7 +13,7 @@ Date: 2025-09-11
 
 ## Decision
 
-Adopt the container-aware MCP server context as the preferred path, with compatibility fallback to the traditional context via configuration (`JarvisSettings.use_dependency_injection`).
+Adopt the container-aware MCP server context as the default and only path. The previous traditional context and the `JarvisSettings.use_dependency_injection` flag have been removed.
 
 ## Consequences
 
@@ -28,11 +28,10 @@ Considerations:
 
 ## Implementation Sketch
 
-- Keep `use_dependency_injection=true` as the recommended default
+- Make dependency injection the default; remove the configuration flag
 - Validate health parity in startup logs
 - Gradually integrate plugin registry for MCP tools to reduce manual registration duplication
 
 ## Alternatives Considered
 
 - Continue manual construction only — simpler short term, but increases drift and complexity
-

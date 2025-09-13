@@ -10,9 +10,9 @@ from pathlib import Path
 import click
 
 from jarvis.utils.config import get_settings
-from jarvis.utils.logging import setup_logging
+import logging
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 def validate_settings_or_exit() -> None:

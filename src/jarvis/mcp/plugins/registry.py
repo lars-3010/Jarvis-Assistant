@@ -10,10 +10,10 @@ from typing import Any
 
 from jarvis.mcp.plugins.base import MCPToolPlugin, PluginMetadata
 from jarvis.utils.errors import PluginError
-from jarvis.utils.logging import setup_logging
+import logging
 from mcp import types
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class PluginRegistry:

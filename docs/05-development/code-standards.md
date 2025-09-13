@@ -81,7 +81,7 @@ from pydantic import BaseModel, Field
 from jarvis.services.vector.database import VectorDatabase
 from jarvis.services.vector.encoder import VectorEncoder
 from jarvis.models.search import SearchResult
-from jarvis.utils.logging import setup_logging
+import logging
 ```
 
 ### Variable Naming
@@ -679,7 +679,7 @@ data science, web development, and artificial intelligence.
 Always validate and sanitize inputs:
 
 ```python
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 
 class SearchRequest(BaseModel):
@@ -690,8 +690,9 @@ class SearchRequest(BaseModel):
     vault_name: Optional[str] = Field(None, max_length=100, description="Vault name")
     similarity_threshold: Optional[float] = Field(None, ge=0.0, le=1.0)
     
-    @validator('query')
-    def validate_query(cls, v):
+    @field_validator('query')
+    @classmethod
+    def validate_query(cls, v: str) -> str:
         """Validate and sanitize query string."""
         if not v.strip():
             raise ValueError("Query cannot be empty or whitespace only")
@@ -703,8 +704,9 @@ class SearchRequest(BaseModel):
         
         return cleaned
     
-    @validator('vault_name')
-    def validate_vault_name(cls, v):
+    @field_validator('vault_name')
+    @classmethod
+    def validate_vault_name(cls, v: Optional[str]) -> Optional[str]:
         """Validate vault name format."""
         if v is None:
             return v

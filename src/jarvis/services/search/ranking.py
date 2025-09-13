@@ -6,9 +6,9 @@ from collections import OrderedDict
 from typing import Any
 
 from jarvis.models.document import SearchResult
-from jarvis.utils.logging import setup_logging
+import logging
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class ResultRanker:
@@ -69,4 +69,3 @@ class ResultRanker:
 
         logger.debug(f"Merged {len(semantic_results)} semantic and {len(keyword_results)} keyword results into {len(ranked)} ranked results.")
         return ranked
-

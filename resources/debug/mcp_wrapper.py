@@ -14,7 +14,8 @@ import asyncio
 from typing import Dict, Optional
 
 from jarvis.mcp.server import run_mcp_server
-from jarvis.utils.logging import setup_logging
+import logging
+import logging.config
 from jarvis.utils.config import JarvisSettings, get_settings
 
 # Redirect logging to a file to avoid interfering with MCP stdio
@@ -22,26 +23,18 @@ from jarvis.utils.config import JarvisSettings, get_settings
 settings = get_settings()
 log_file = settings.get_log_file_path()
 
-# Setup logging to file only
-import logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(log_file),
-        # Only add stderr handler for critical errors
-        logging.StreamHandler(sys.stderr)
-    ]
-)
-
-# Set stderr handler to only show critical errors
-stderr_handler = logging.StreamHandler(sys.stderr)
-stderr_handler.setLevel(logging.CRITICAL)
-logging.getLogger().handlers = [
-    logging.FileHandler(log_file),
-    stderr_handler
-]
-
+# Centralized logging: logs to file + stderr; MCP stdio remains on stdout
+cfg = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"standard": {"format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"}},
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "level": "INFO", "formatter": "standard", "stream": "ext://sys.stderr"},
+        "file": {"class": "logging.FileHandler", "level": "INFO", "formatter": "standard", "filename": str(log_file)},
+    },
+    "root": {"level": "INFO", "handlers": ["console", "file"]},
+}
+logging.config.dictConfig(cfg)
 logger = logging.getLogger(__name__)
 
 async def main():

@@ -46,7 +46,9 @@ This roadmap outlines the transformation of Jarvis Assistant from a monolithic M
 - **ServiceContainer**: Full dependency injection system with lifecycle management
 - **Service Interfaces**: Abstract definitions for all major services (IVectorDatabase, IGraphDatabase, etc.)
 - **Container-Aware Context**: New MCP server context using dependency injection
-- **Backward Compatibility**: Feature flag system (`JARVIS_USE_DEPENDENCY_INJECTION`)
+- **DI Default**: Dependency Injection is the default server path. The old
+  `JARVIS_USE_DEPENDENCY_INJECTION` flag is retained for compatibility in
+  settings but has no effect on server behavior.
 - **Configuration Support**: Enhanced settings for DI features
 - **Comprehensive Testing**: Unit and integration tests with 97% coverage
 
@@ -71,7 +73,7 @@ searcher = container.get(IVectorSearcher)  # Auto-wired dependencies
 #### Validation
 - ✅ All MCP tools working correctly
 - ✅ Claude Desktop compatibility maintained  
-- ✅ Both traditional and DI modes functional
+- ✅ DI path is standard; traditional context removed from server
 - ✅ Zero performance regression
 - ✅ Production deployment ready
 
@@ -198,10 +200,20 @@ class SemanticSearchPlugin(MCPToolPlugin):
         self.searcher = container.get(IVectorSearcher)
     
     def get_tool_definition(self) -> types.Tool:
+        # Use standardized schema helpers (no inline dicts)
+        from jarvis.mcp.schemas import SearchSchemaConfig, create_search_schema
+        schema_cfg = SearchSchemaConfig(
+            query_required=True,
+            enable_vault_selection=True,
+            default_limit=10,
+            max_limit=50,
+            supported_formats=["json"],
+        )
+        input_schema = create_search_schema(schema_cfg)
         return types.Tool(
             name="search-semantic",
             description="Perform semantic search across vault content",
-            inputSchema={...}
+            inputSchema=input_schema,
         )
     
     async def execute(self, arguments: Dict[str, Any]) -> List[types.TextContent]:

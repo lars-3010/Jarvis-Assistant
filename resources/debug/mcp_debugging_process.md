@@ -139,7 +139,8 @@ import asyncio
 from typing import Dict, Optional
 
 from jarvis.mcp.server import run_mcp_server
-from jarvis.utils.logging import setup_logging
+import logging
+import logging.config
 from jarvis.utils.config import JarvisSettings, get_settings
 
 # Redirect logging to a file to avoid interfering with MCP stdio
@@ -147,25 +148,18 @@ log_file = Path.home() / ".jarvis" / "mcp_server.log"
 log_file.parent.mkdir(parents=True, exist_ok=True)
 
 # Setup logging to file only
-import logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(log_file),
-        # Only add stderr handler for critical errors
-        logging.StreamHandler(sys.stderr)
-    ]
-)
-
-# Set stderr handler to only show critical errors
-stderr_handler = logging.StreamHandler(sys.stderr)
-stderr_handler.setLevel(logging.CRITICAL)
-logging.getLogger().handlers = [
-    logging.FileHandler(log_file),
-    stderr_handler
-]
-
+# Route logs to file and keep stderr quiet for MCP stdio
+LOG_CFG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"standard": {"format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"}},
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "level": "INFO", "formatter": "standard", "stream": "ext://sys.stderr"},
+        "file": {"class": "logging.FileHandler", "level": "INFO", "formatter": "standard", "filename": str(log_file)}
+    },
+    "root": {"level": "INFO", "handlers": ["console", "file"]}
+}
+logging.config.dictConfig(LOG_CFG)
 logger = logging.getLogger(__name__)
 
 async def main():
@@ -236,33 +230,26 @@ from jarvis.mcp.server import run_mcp_server
 from jarvis.utils.config import JarvisSettings, get_settings
 
 def setup_mcp_logging():
-    """Setup logging for MCP server - logs to stderr only."""
+    """Setup logging for MCP server."""
+    import logging.config
     log_file = Path.home() / ".jarvis" / "mcp_server.log"
     log_file.parent.mkdir(parents=True, exist_ok=True)
-    
-    # Configure root logger to use stderr and file
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler(sys.stderr)  # Use stderr for MCP
-        ]
-    )
-    
-    # Set specific loggers to use stderr
-    for logger_name in ['jarvis', 'jarvis.mcp', 'jarvis.services']:
-        logger = logging.getLogger(logger_name)
-        logger.handlers = []  # Clear any existing handlers
-        logger.addHandler(logging.StreamHandler(sys.stderr))
-        logger.addHandler(logging.FileHandler(log_file))
-        logger.setLevel(logging.INFO)
-        logger.propagate = False
+    logging.config.dictConfig({
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {"standard": {"format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"}},
+        "handlers": {
+            "console": {"class": "logging.StreamHandler", "level": "INFO", "formatter": "standard", "stream": "ext://sys.stderr"},
+            "file": {"class": "logging.FileHandler", "level": "INFO", "formatter": "standard", "filename": str(log_file)}
+        },
+        "root": {"level": "INFO", "handlers": ["console", "file"]}
+    })
 
 async def main():
     """Main entry point for MCP server."""
     # Setup logging first
     setup_mcp_logging()
+    import logging
     logger = logging.getLogger(__name__)
     
     try:

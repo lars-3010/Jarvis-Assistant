@@ -16,10 +16,10 @@ from jarvis.mcp.plugins.base import SearchPlugin
 from jarvis.mcp.structured import GraphData, graphrag_to_json
 from jarvis.services.graphrag import GraphRAGQuery, GraphRAGService
 from jarvis.utils.errors import PluginError, ServiceError
-from jarvis.utils.logging import setup_logging
+import logging
 from mcp import types
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class SearchGraphRAGPlugin(SearchPlugin):

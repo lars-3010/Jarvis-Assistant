@@ -17,7 +17,7 @@ class PromptTemplate(BaseModel):
     """Template for constructing prompts."""
     name: str
     template: str
-    variables: list[str] = []
+    variables: list[str] = Field(default_factory=list)
     task_type: TaskType = TaskType.GENERAL
     model_preference: str | None = None
     default_config: dict[str, Any] = Field(default_factory=dict)
@@ -42,7 +42,7 @@ class ConversationMessage(BaseModel):
 
 class ConversationHistory(BaseModel):
     """History of a conversation."""
-    messages: list[ConversationMessage] = []
+    messages: list[ConversationMessage] = Field(default_factory=list)
     max_messages: int = 50
     total_tokens: int = 0
 
@@ -174,7 +174,7 @@ class LLMProviderConfig(BaseModel):
     retry_delay_seconds: float = 1.0
 
     # Model configuration
-    available_models: list[ModelInfo] = []
+    available_models: list[ModelInfo] = Field(default_factory=list)
     default_model: str | None = None
     model_preferences: dict[TaskType, str] = Field(default_factory=dict)
 
@@ -194,7 +194,7 @@ class LLMServiceStatus(BaseModel):
     """Status of LLM service."""
     is_healthy: bool = True
     provider: str = ""
-    active_models: list[str] = []
+    active_models: list[str] = Field(default_factory=list)
 
     # Resource usage
     memory_usage_gb: float = 0.0
@@ -237,7 +237,7 @@ class TaskRoutingRule(BaseModel):
 
 class ModelRoutingConfig(BaseModel):
     """Configuration for model routing."""
-    routing_rules: list[TaskRoutingRule] = []
+    routing_rules: list[TaskRoutingRule] = Field(default_factory=list)
     fallback_model: str | None = None
 
     # Routing strategy

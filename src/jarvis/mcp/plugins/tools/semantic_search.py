@@ -16,10 +16,10 @@ from jarvis.services.search import ResultRanker
 from jarvis.utils.errors import PluginError, ServiceError
 
 # Lazy import to avoid circular dependencies
-from jarvis.utils.logging import setup_logging
+import logging
 from mcp import types
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class SemanticSearchPlugin(SearchPlugin):

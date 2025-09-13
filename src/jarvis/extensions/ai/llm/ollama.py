@@ -13,7 +13,7 @@ from typing import Any
 
 import aiohttp
 
-from jarvis.utils.logging import setup_logging
+import logging
 
 from .interfaces import (
     AnalysisResult,
@@ -33,7 +33,7 @@ from .models import (
     ModelUnavailableError,
 )
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class OllamaClient(ILLMService):

@@ -16,10 +16,10 @@ from jarvis.mcp.plugins.base import UtilityPlugin
 from jarvis.mcp.schemas import UtilitySchemaConfig, create_utility_schema
 from jarvis.mcp.structured import list_vaults_to_json
 from jarvis.utils.errors import PluginError, ServiceError
-from jarvis.utils.logging import setup_logging
+import logging
 from mcp import types
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class ListVaultsPlugin(UtilityPlugin):

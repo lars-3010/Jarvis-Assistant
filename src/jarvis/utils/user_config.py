@@ -13,9 +13,9 @@ from typing import Any
 
 import yaml
 
-from jarvis.utils.logging import setup_logging
+import logging
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 _CONFIG_CACHE: dict[str, Any] | None = None
@@ -61,4 +61,3 @@ def get_user_config(project_root: Path | None = None) -> dict[str, Any]:
 def get_property_extraction_config() -> dict[str, Any]:
     cfg = get_user_config()
     return cfg.get("property_extraction", {})
-

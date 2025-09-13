@@ -17,7 +17,7 @@ from jarvis.extensions.interfaces import (
     IExtension,
     MCPTool,
 )
-from jarvis.utils.logging import setup_logging
+import logging
 from mcp import types
 
 # Phase 1: LLM imports
@@ -32,7 +32,7 @@ from .llm import (
     get_template_manager,
 )
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class AIExtension(IExtension):

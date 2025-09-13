@@ -12,9 +12,9 @@ import torch
 
 from jarvis.core.interfaces import IVectorDatabase
 from jarvis.utils.errors import JarvisError, ServiceError
-from jarvis.utils.logging import setup_logging
+import logging
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class ChromaVectorDatabase(IVectorDatabase):

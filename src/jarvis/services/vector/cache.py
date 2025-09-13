@@ -12,12 +12,12 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from jarvis.utils.logging import setup_logging
+import logging
 
 if TYPE_CHECKING:
     from jarvis.models.document import SearchResult
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class QueryCache:

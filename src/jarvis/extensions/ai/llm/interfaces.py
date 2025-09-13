@@ -42,7 +42,7 @@ class ModelInfo(BaseModel):
     context_window: int = 4096
     max_tokens: int = 2048
     estimated_memory_gb: float = 0.0
-    specialized_for: list[TaskType] = []
+    specialized_for: list[TaskType] = Field(default_factory=list)
     download_size_mb: int | None = None
     is_available: bool = False
 
@@ -73,9 +73,9 @@ class LLMResponse(BaseModel):
 class AnalysisResult(BaseModel):
     """Result of content analysis."""
     answer: str
-    key_points: list[str] = []
+    key_points: list[str] = Field(default_factory=list)
     sentiment: str | None = None
-    topics: list[str] = []
+    topics: list[str] = Field(default_factory=list)
     confidence: float | None = None
     sources_analyzed: int = 0
 
@@ -100,7 +100,7 @@ class LLMConfig(BaseModel):
     top_p: float = 0.9
     frequency_penalty: float = 0.0
     presence_penalty: float = 0.0
-    stop_sequences: list[str] = []
+    stop_sequences: list[str] = Field(default_factory=list)
     stream: bool = False
     timeout_seconds: int = 30
 

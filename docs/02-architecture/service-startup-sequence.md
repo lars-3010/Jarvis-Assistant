@@ -65,9 +65,8 @@ def load_and_validate_settings() -> JarvisSettings:
         if not settings.get_vector_db_path().parent.exists():
             settings.get_vector_db_path().parent.mkdir(parents=True, exist_ok=True)
         
-        # Validate feature flags
-        if settings.use_dependency_injection:
-            logger.info("Dependency injection enabled")
+        # DI is always enabled by default
+        logger.info("Dependency injection enabled (default path)")
         
         return settings
     except ValidationError as e:
@@ -79,7 +78,6 @@ def load_and_validate_settings() -> JarvisSettings:
 
 | Variable | Purpose | Default | Validation |
 |----------|---------|---------|------------|
-| `JARVIS_USE_DEPENDENCY_INJECTION` | Enable DI container | `true` | Boolean |
 | `JARVIS_VECTOR_DB_PATH` | Database file location | `data/jarvis.duckdb` | Path validation |
 | `JARVIS_NEO4J_ENABLED` | Enable graph database | `false` | Boolean |
 | `JARVIS_LOG_LEVEL` | Logging verbosity | `INFO` | Log level validation |
@@ -222,13 +220,9 @@ def create_mcp_server(
     """Create MCP server with appropriate context."""
     server = Server("jarvis-assistant")
     
-    # Choose context based on configuration
-    if settings and settings.use_dependency_injection:
-        logger.info("Using container-aware MCP server context")
-        context = ContainerAwareMCPServerContext(vaults, database_path, settings)
-    else:
-        logger.info("Using traditional MCP server context")
-        context = MCPServerContext(vaults, database_path, settings)
+    # Use container-aware MCP server context (default path)
+    logger.info("Using container-aware MCP server context (default)")
+    context = ContainerAwareMCPServerContext(vaults, database_path, settings)
     
     # Register MCP protocol handlers
     @server.list_tools()
@@ -438,7 +432,6 @@ logger.info("🚀 Starting Jarvis Assistant MCP Server", extra={
     "event": "startup_begin",
     "version": "0.2.0",
     "python_version": sys.version,
-    "dependency_injection": settings.use_dependency_injection
 })
 
 logger.info("💾 Database initialization complete", extra={

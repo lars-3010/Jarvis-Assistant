@@ -8,13 +8,44 @@ ensures logging goes to stderr while MCP protocol uses stdout.
 
 import asyncio
 import logging
+import logging.config
 import os
 import sys
 from pathlib import Path
 
-from jarvis.mcp.server import run_mcp_server
 from jarvis.utils.config import get_settings
-from jarvis.utils.logging import configure_root_logging
+
+
+def _configure_logging(level: str = "INFO", structured: bool = False, log_file: Path | None = None) -> None:
+    fmt_standard = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    config = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "standard": {"format": fmt_standard, "datefmt": "%Y-%m-%d %H:%M:%S"}
+        },
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "level": level,
+                "formatter": "standard",
+                "stream": "ext://sys.stderr",
+            }
+        },
+        "root": {"level": level, "handlers": ["console"]},
+        "loggers": {"jarvis": {"level": level, "handlers": ["console"], "propagate": False}},
+    }
+    if log_file:
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        config["handlers"]["file"] = {
+            "class": "logging.FileHandler",
+            "level": level,
+            "formatter": "standard",
+            "filename": str(log_file),
+        }
+        config["root"]["handlers"].append("file")
+        config["loggers"]["jarvis"]["handlers"].append("file")
+    logging.config.dictConfig(config)
 
 
 def setup_mcp_logging():
@@ -24,17 +55,16 @@ def setup_mcp_logging():
 
     # Centralized logging configuration (stderr + optional file)
     # Respect settings.log_level and avoid duplicate handlers
-    configure_root_logging(
-        level=settings.log_level,
-        structured=False,
-        log_file=log_file,
-    )
+    _configure_logging(level=settings.log_level, structured=False, log_file=log_file)
 
 async def main():
     """Main entry point for MCP server."""
     # Setup logging first
     setup_mcp_logging()
     logger = logging.getLogger(__name__)
+
+    # Import server after logging is configured to avoid duplicate handlers
+    from jarvis.mcp.server import run_mcp_server
 
     try:
         # Get configuration from CLI arguments passed through environment

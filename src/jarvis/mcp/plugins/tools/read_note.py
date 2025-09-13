@@ -14,10 +14,10 @@ from jarvis.mcp.plugins.base import VaultPlugin
 # Lazy import to avoid circular dependencies
 from jarvis.mcp.structured import read_note_to_json
 from jarvis.utils.errors import PluginError, ServiceError
-from jarvis.utils.logging import setup_logging
+import logging
 from mcp import types
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class ReadNotePlugin(VaultPlugin):

@@ -416,9 +416,9 @@ def validate_configuration(self, config: Dict[str, Any]) -> bool:
 ### 4. Logging Standards
 
 ```python
-from jarvis.utils.logging import setup_logging
+import logging
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 # Use structured logging
 logger.info("Extension initialized", extra={

@@ -13,9 +13,9 @@ from typing import Any
 from jsonschema import Draft7Validator
 
 from jarvis.utils.errors import JarvisError
-from jarvis.utils.logging import setup_logging
+import logging
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class SchemaError(JarvisError):

@@ -17,9 +17,9 @@ from sentence_transformers import SentenceTransformer
 from jarvis.core.interfaces import IVectorEncoder
 from jarvis.utils.config import get_settings
 from jarvis.utils.errors import ServiceError
-from jarvis.utils.logging import setup_logging
+import logging
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class VectorEncoder(IVectorEncoder):

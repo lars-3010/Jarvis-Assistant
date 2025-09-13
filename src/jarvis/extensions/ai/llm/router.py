@@ -9,7 +9,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any
 
-from jarvis.utils.logging import setup_logging
+import logging
 
 from .interfaces import IModelRouter, ModelInfo, TaskType
 from .models import (
@@ -20,7 +20,7 @@ from .models import (
     TaskRoutingRule,
 )
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class ModelRouter(IModelRouter):

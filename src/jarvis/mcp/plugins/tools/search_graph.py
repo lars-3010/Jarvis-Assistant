@@ -16,10 +16,10 @@ from jarvis.mcp.structured import graph_search_to_json, semantic_fallback_to_jso
 
 # Lazy import to avoid circular dependencies
 from jarvis.utils.errors import PluginError, ServiceError
-from jarvis.utils.logging import setup_logging
+import logging
 from mcp import types
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 # Constants
 MAX_DEPTH = 5

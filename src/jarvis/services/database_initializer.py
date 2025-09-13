@@ -21,9 +21,9 @@ from jarvis.utils.database_errors import (
     DatabaseErrorHandler,
 )
 from jarvis.utils.errors import ServiceError
-from jarvis.utils.logging import setup_logging
+import logging
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 @dataclass

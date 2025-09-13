@@ -12,10 +12,10 @@ from typing import Any
 from jarvis.core.interfaces import IVaultAnalyticsService
 from jarvis.mcp.plugins.base import UtilityPlugin
 from jarvis.utils.errors import PluginError, ServiceError
-from jarvis.utils.logging import setup_logging
+import logging
 from mcp import types
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class AnalyticsCacheStatusPlugin(UtilityPlugin):

@@ -9,7 +9,7 @@ and validation for all plugins.
 from typing import Any
 
 from jarvis.mcp.plugins.base import MCPToolPlugin
-from jarvis.utils.logging import setup_logging
+import logging
 
 from .manager import get_schema_manager
 from .registry import get_schema_registry
@@ -26,7 +26,7 @@ from .templates import (
     create_vault_schema,
 )
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class SchemaIntegrator:

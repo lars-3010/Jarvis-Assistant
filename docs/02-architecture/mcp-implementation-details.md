@@ -43,16 +43,12 @@ def create_mcp_server(
     database_path: Path,
     settings: Optional[JarvisSettings] = None
 ) -> Server:
-    """Create and configure the MCP server with dependency injection support."""
+    """Create and configure the MCP server with dependency injection (default)."""
     server = Server("jarvis-assistant")
     
-    # Use dependency injection container if enabled
-    if settings and settings.use_dependency_injection:
-        logger.info("Using container-aware MCP server context")
-        context = ContainerAwareMCPServerContext(vaults, database_path, settings)
-    else:
-        logger.info("Using traditional MCP server context")
-        context = MCPServerContext(vaults, database_path, settings)
+    # Always use container-aware context (traditional path removed)
+    logger.info("Using container-aware MCP server context (default)")
+    context = ContainerAwareMCPServerContext(vaults, database_path, settings)
     
     # Register MCP protocol handlers
     @server.list_tools()
@@ -193,67 +189,62 @@ def run_mcp_server():
             return [types.TextContent(type="text", text=f"Error: {str(e)}")]
     
     async def list_tools(self) -> List[Tool]:
-        """List all available tools"""
-        return [
-            Tool(
-                name="search-semantic",
-                description="Search vault content using semantic similarity",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "query": {"type": "string", "description": "Search query"},
-                        "similarity_threshold": {"type": "number", "default": 0.7},
-                        "limit": {"type": "integer", "default": 10},
-                        "vault": {"type": "string", "description": "Vault name filter"}
-                    },
-                    "required": ["query"]
-                }
-            ),
-            Tool(
-                name="search-graph",
-                description="Search for related notes using graph relationships",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "query_note_path": {"type": "string", "description": "Starting note path"},
-                        "depth": {"type": "integer", "default": 2, "minimum": 1, "maximum": 5}
-                    },
-                    "required": ["query_note_path"]
-                }
-            ),
-            Tool(
-                name="search-vault",
-                description="Search vault using traditional keyword matching",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "query": {"type": "string", "description": "Search query"},
-                        "search_content": {"type": "boolean", "default": True},
-                        "limit": {"type": "integer", "default": 20}
-                    },
-                    "required": ["query"]
-                }
-            ),
-            Tool(
-                name="read-note",
-                description="Read content of a specific note",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "path": {"type": "string", "description": "Note path relative to vault root"},
-                        "vault": {"type": "string", "description": "Vault name"}
-                    },
-                    "required": ["path"]
-                }
-            ),
-            Tool(
-                name="list-vaults",
-                description="List all available vaults and their statistics",
-                inputSchema={
-                    "type": "object",
-                    "properties": {}
+        """List all available tools (using schema helpers)."""
+        from jarvis.mcp.schemas import (
+            SearchSchemaConfig,
+            AnalyticsSchemaConfig,
+            VaultSchemaConfig,
+            UtilitySchemaConfig,
+            create_search_schema,
+            create_analytics_schema,
+            create_vault_schema,
+            create_utility_schema,
+        )
+
+        search_semantic_schema = create_search_schema(
+            SearchSchemaConfig(
+                query_required=True,
+                enable_similarity_threshold=True,
+                enable_vault_selection=True,
+                default_limit=10,
+                max_limit=50,
+                supported_formats=["json"],
+            )
+        )
+
+        # Graph search with custom fields via utility schema extension
+        search_graph_schema = create_utility_schema(
+            UtilitySchemaConfig(
+                additional_properties={
+                    "query_note_path": {"type": "string", "description": "Starting note path"},
+                    "depth": {"type": "integer", "default": 2, "minimum": 1, "maximum": 5},
                 }
             )
+        )
+        search_graph_schema["required"] = ["query_note_path"]
+
+        search_vault_schema = create_search_schema(
+            SearchSchemaConfig(
+                enable_content_search=True,
+                enable_vault_selection=True,
+                default_limit=20,
+                max_limit=50,
+                supported_formats=["json"],
+            )
+        )
+
+        read_note_schema = create_vault_schema(
+            VaultSchemaConfig(path_required=True, enable_vault_selection=True, supported_formats=["json"])
+        )
+
+        list_vaults_schema = create_utility_schema()
+
+        return [
+            Tool(name="search-semantic", description="Search vault content using semantic similarity", inputSchema=search_semantic_schema),
+            Tool(name="search-graph", description="Search for related notes using graph relationships", inputSchema=search_graph_schema),
+            Tool(name="search-vault", description="Search vault using traditional keyword matching", inputSchema=search_vault_schema),
+            Tool(name="read-note", description="Read content of a specific note", inputSchema=read_note_schema),
+            Tool(name="list-vaults", description="List all available vaults and their statistics", inputSchema=list_vaults_schema),
         ]
     
     async def call_tool(self, name: str, arguments: Dict[str, Any]) -> List[TextContent]:

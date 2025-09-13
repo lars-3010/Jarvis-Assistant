@@ -12,9 +12,9 @@ from typing import Any, TypeVar
 from jarvis.core.interfaces import IGraphDatabase, IVectorDatabase
 from jarvis.utils.config import JarvisSettings
 from jarvis.utils.errors import ConfigurationError
-from jarvis.utils.logging import setup_logging
+import logging
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 T = TypeVar('T')
 

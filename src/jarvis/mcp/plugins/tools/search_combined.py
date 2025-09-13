@@ -18,10 +18,10 @@ from jarvis.mcp.plugins.base import SearchPlugin
 from jarvis.mcp.structured import combined_search_to_json
 from jarvis.mcp.schemas import SearchSchemaConfig, create_search_schema
 from jarvis.utils.errors import PluginError
-from jarvis.utils.logging import setup_logging
+import logging
 from mcp import types
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 # Constants for result fusion
 HIGH_SCORE_THRESHOLD = 0.8

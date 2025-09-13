@@ -9,9 +9,9 @@ configuration, enabling easy switching between different database backends.
 from jarvis.core.interfaces import IGraphDatabase, IVectorDatabase
 from jarvis.utils.config import JarvisSettings
 from jarvis.utils.errors import ConfigurationError, ServiceError
-from jarvis.utils.logging import setup_logging
+import logging
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class DatabaseConfig:

@@ -13,12 +13,12 @@ from typing import Any
 from jinja2 import Environment, FileSystemLoader, Template, TemplateError
 from pydantic import BaseModel, Field, ConfigDict
 
-from jarvis.utils.logging import setup_logging
+import logging
 
 from .interfaces import TaskType
 from .models import LLMError, PromptTemplate
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class PromptVariables(BaseModel):

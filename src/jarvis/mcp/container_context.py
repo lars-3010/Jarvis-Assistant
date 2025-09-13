@@ -20,9 +20,9 @@ from jarvis.core.interfaces import (
 from jarvis.mcp.cache import MCPToolCache
 from jarvis.services.search import ResultRanker
 from jarvis.utils.config import JarvisSettings
-from jarvis.utils.logging import setup_logging
+import logging
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class ContainerAwareMCPServerContext:

@@ -9,12 +9,12 @@ import json
 from pathlib import Path
 from typing import Any
 
-from jarvis.utils.logging import setup_logging
+import logging
 
 from .manager import SchemaInfo, SchemaManager
 from .validator import SchemaValidator, ValidationResult
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class SchemaRegistry:

@@ -15,9 +15,9 @@ from jarvis.core.events import get_event_bus, publish_event
 from jarvis.core.interfaces import IMetrics
 from jarvis.core.task_queue import AsyncTaskQueue, TaskPriority, get_task_queue
 from jarvis.utils.errors import ConfigurationError
-from jarvis.utils.logging import setup_logging
+import logging
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class ScheduleType(Enum):

@@ -16,10 +16,10 @@ import yaml
 from jarvis.core.interfaces import IVaultReader
 from jarvis.utils.config import get_settings
 from jarvis.utils.errors import ConfigurationError, ServiceError, ValidationError
-from jarvis.utils.logging import setup_logging
+import logging
 from jarvis.utils.user_config import get_property_extraction_config
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class VaultReader(IVaultReader):

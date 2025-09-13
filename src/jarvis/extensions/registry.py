@@ -19,9 +19,9 @@ from jarvis.extensions.interfaces import (
     IExtension,
     MCPTool,
 )
-from jarvis.utils.logging import setup_logging
+import logging
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 @dataclass

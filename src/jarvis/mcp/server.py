@@ -20,12 +20,13 @@ from jarvis.services.database_initializer import DatabaseInitializer
 from jarvis.utils.config import JarvisSettings, get_settings
 from jarvis.utils.database_errors import DatabaseError, DatabaseErrorHandler
 from jarvis.utils.errors import JarvisError, ServiceUnavailableError, ToolExecutionError
-from jarvis.utils.logging import setup_logging
+import logging
+import logging.config
 from mcp import types
 from mcp.server import NotificationOptions, Server
 from mcp.server.models import InitializationOptions
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 
@@ -623,6 +624,20 @@ def main() -> None:
     if not default_vaults:
         logger.error("No vault configured. Set JARVIS_VAULT_PATH environment variable.")
         sys.exit(1)
+
+    # Configure root logging for standalone run
+    try:
+        level = os.getenv("JARVIS_LOG_LEVEL", "INFO")
+        cfg = {
+            "version": 1,
+            "disable_existing_loggers": False,
+            "formatters": {"standard": {"format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"}},
+            "handlers": {"console": {"class": "logging.StreamHandler", "level": level, "formatter": "standard", "stream": "ext://sys.stderr"}},
+            "root": {"level": level, "handlers": ["console"]},
+        }
+        logging.config.dictConfig(cfg)
+    except Exception:
+        pass
 
     # Run the server
     asyncio.run(run_mcp_server(default_vaults, default_db_path))

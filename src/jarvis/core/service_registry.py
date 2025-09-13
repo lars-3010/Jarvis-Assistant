@@ -16,9 +16,9 @@ from enum import Enum
 from typing import Any
 
 from jarvis.core.interfaces import IMetrics
-from jarvis.utils.logging import setup_logging
+import logging
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class ServiceStatus(Enum):

@@ -21,9 +21,9 @@ from jarvis.core.service_registry import (
     ServiceStatus,
     get_service_registry,
 )
-from jarvis.utils.logging import setup_logging
+import logging
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 @dataclass

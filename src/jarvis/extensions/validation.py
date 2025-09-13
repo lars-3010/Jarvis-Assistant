@@ -13,9 +13,9 @@ from jsonschema import ValidationError as JsonSchemaValidationError
 
 from jarvis.extensions.interfaces import ExtensionMetadata
 from jarvis.utils.config import JarvisSettings, ValidationResult
-from jarvis.utils.logging import setup_logging
+import logging
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class ExtensionValidator:

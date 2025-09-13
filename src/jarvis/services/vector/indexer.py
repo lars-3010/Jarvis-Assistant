@@ -15,9 +15,9 @@ from jarvis.services.vector.database import VectorDatabase
 from jarvis.services.vector.encoder import VectorEncoder
 from jarvis.utils.config import get_settings
 from jarvis.utils.errors import ConfigurationError, ServiceError
-from jarvis.utils.logging import setup_logging
+import logging
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 
 class IndexingStats:

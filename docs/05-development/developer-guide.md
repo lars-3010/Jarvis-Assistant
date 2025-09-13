@@ -63,7 +63,7 @@ JARVIS_NEO4J_USER=neo4j
 JARVIS_NEO4J_PASSWORD=your_password
 
 # Optional: Enable advanced features
-JARVIS_USE_DEPENDENCY_INJECTION=true
+# Dependency Injection is enabled by default; no flag needed
 JARVIS_ANALYTICS_ENABLED=true
 ```
 
@@ -409,17 +409,35 @@ def get_search_results(query: str) -> List[SearchResult]:
 ### Logging Configuration
 
 ```python
-# Enable debug logging during development
+# Enable debug logging during development (centralized)
 import logging
+import logging.config
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+LOG_CFG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {
+            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        }
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "level": "DEBUG",
+            "formatter": "standard",
+            "stream": "ext://sys.stderr",
+        }
+    },
+    "root": {"level": "DEBUG", "handlers": ["console"]},
+}
+
+logging.config.dictConfig(LOG_CFG)
 
 # Component-specific logging
 logger = logging.getLogger('jarvis.services.vector.searcher')
-logger.setLevel(logging.DEBUG)
+logger.debug("Vector searcher debug logging enabled")
 ```
 
 ### Common Development Issues

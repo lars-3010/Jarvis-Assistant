@@ -16,9 +16,9 @@ import duckdb
 from neo4j import AsyncDriver, AsyncGraphDatabase, AsyncSession
 
 from jarvis.utils.errors import ServiceUnavailableError
-from jarvis.utils.logging import setup_logging
+import logging
 
-logger = setup_logging(__name__)
+logger = logging.getLogger(__name__)
 
 T = TypeVar('T')  # Connection type
 
