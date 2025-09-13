@@ -67,7 +67,7 @@ This document tracks the implementation status of architectural components descr
 | Component | File | Status | Coverage | Notes |
 |-----------|------|--------|----------|-------|
 | **Health Service** | `src/jarvis/services/health.py` | ✅ Production | 94% | Comprehensive health checks |
-| **Metrics** | `src/jarvis/monitoring/metrics.py` | ✅ Production | 88% | Performance tracking |
+| **Metrics** | `src/jarvis/observability/metrics.py` | ✅ Production | 88% | Performance tracking |
 | **Ranking** | `src/jarvis/services/ranking.py` | ✅ Production | 86% | Result ranking algorithms |
 
 ## MCP Tools Status

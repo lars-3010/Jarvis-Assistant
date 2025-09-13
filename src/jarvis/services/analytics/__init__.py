@@ -1,12 +1,8 @@
-"""Analytics import shim.
+"""Analytics services (canonical)."""
 
-This package re-exports analytics features from ``jarvis.features.analytics``
-to maintain backwards compatibility with existing imports.
-"""
-
-from jarvis.features.analytics import (
+from .models import (
     ActionableRecommendation,
-    AnalyticsError,
+    AnalyticsIssue,
     BridgeOpportunity,
     CacheStatus,
     DepthMetrics,
@@ -18,12 +14,13 @@ from jarvis.features.analytics import (
     QualityScore,
     QualityTrend,
     VaultContext,
-    VaultAnalyticsService,
 )
+
+from .service import VaultAnalyticsService
 
 __all__ = [
     "ActionableRecommendation",
-    "AnalyticsError",
+    "AnalyticsIssue",
     "BridgeOpportunity",
     "CacheStatus",
     "DepthMetrics",

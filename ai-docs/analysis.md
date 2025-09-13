@@ -139,10 +139,10 @@ sequenceDiagram
 |------|-----------|------|-------------|-------------------|
 | MCP Core | `src/jarvis/mcp/` | Server, plugin registry, discovery, schemas, formatters | Some legacy server code remains; two utility plugins show schema errors | Remove/Archive legacy handlers; fix `UtilitySchemaConfig` mismatch; add small registry smoke test |
 | Services – Vector/Vault/Graph | `src/jarvis/services/{vector,vault,graph}` | Core service impls behind interfaces | Heavy DB deps; graph is essential | Keep Graph as core; provide graceful degradation (DISABLED/UNAVAILABLE) and clear errors |
-| Analytics/GraphRAG | `src/jarvis/services/{analytics,graphrag}` | High-level analysis features | Adds complexity and deps | Move to `features/` or make optional via extras |
-| Dataset Generation | `src/jarvis/tools/dataset_generation` | Offline dataset tools | Largest complexity, not core to MCP | Extract to external pkg or `extensions/` with optional install |
+| Analytics/GraphRAG | `src/jarvis/services/{analytics,graphrag}` | High-level analysis features | Adds complexity and deps | Keep under services (canonical); expose via optional config flags if needed |
+| Dataset Generation | — | Offline dataset tools | Not core to MCP | If needed, host in `extensions/` as an optional package |
 | Core/DI/Interfaces | `src/jarvis/core` | Interfaces, container, events | Good separation | Add short dev guide: how to bind services and extend |
-| Monitoring | `src/jarvis/monitoring` | Metrics infra | Logging/deprecation noise | Normalize logging config; add env-based level switches |
+| Observability | `src/jarvis/observability` | Metrics infra | Logging/deprecation noise | Normalize logging config; add env-based level switches |
 | Config/Utils | `src/jarvis/utils` | Settings, error types, helpers | Pydantic v2 deprecations; noisy Settings init logs | Migrate to v2 idioms; reduce init logging; add config reference doc |
 | (No CLI) | — | — | MCP is primary interface | Remove CLI; keep only internal scripts if needed |
 

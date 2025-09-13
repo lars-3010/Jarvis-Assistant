@@ -1,5 +1,7 @@
 """
 Metrics collection and reporting for Jarvis Assistant.
+
+Moved from jarvis.monitoring.metrics to jarvis.observability.metrics.
 """
 
 import functools

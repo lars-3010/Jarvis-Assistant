@@ -3,6 +3,7 @@ Graph Database Service for Neo4j Operations
 Handles all interactions with the Neo4j graph database.
 """
 import logging
+import time
 import os
 from typing import Any
 
@@ -10,7 +11,7 @@ from neo4j import Driver, Transaction
 from neo4j import GraphDatabase as Neo4jGraphDatabase
 from neo4j.exceptions import Neo4jError, ServiceUnavailable
 
-from jarvis.core.interfaces import IGraphDatabase
+from jarvis.core.interfaces import IGraphDatabase, IMetrics
 from jarvis.services.health import check_neo4j_health
 from jarvis.utils.config import JarvisSettings
 from jarvis.utils.errors import ServiceUnavailableError
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 class GraphDatabase(IGraphDatabase):
     """Service for all Neo4j graph database operations"""
 
-    def __init__(self, settings: JarvisSettings):
+    def __init__(self, settings: JarvisSettings, metrics: IMetrics | None = None):
         """
         Initialize Neo4j connection and schema based on settings.
 
@@ -30,12 +31,14 @@ class GraphDatabase(IGraphDatabase):
         """
         self.driver: Driver | None = None
         self.enabled = settings.graph_enabled
+        self.metrics: IMetrics | None = metrics
 
         if not self.enabled:
             logger.info("Neo4j integration is disabled by configuration.")
             return
 
         try:
+            start_time = time.time()
             logger.info(f"Attempting Neo4j connection with URI: {settings.neo4j_uri}")
             logger.info(f"Neo4j user: {settings.neo4j_user}")
             logger.info(f"Neo4j password: {'*' * len(settings.neo4j_password)} (length: {len(settings.neo4j_password)})")
@@ -74,10 +77,26 @@ class GraphDatabase(IGraphDatabase):
 
             self._initialize_schema()
             logger.info(f"Connected to Neo4j at {settings.neo4j_uri}")
+            # Record successful startup
+            if self.metrics and hasattr(self.metrics, "record_service_operation"):
+                try:
+                    self.metrics.record_service_operation(
+                        "graph_database", "startup", time.time() - start_time, success=True
+                    )
+                except Exception:
+                    pass
 
         except (ServiceUnavailable, Neo4jError) as e:
             logger.warning(f"Neo4j connection to {settings.neo4j_uri} failed. Graph features will be unavailable. Reason: {e}")
             self.driver = None
+            # Record startup failure
+            if self.metrics and hasattr(self.metrics, "record_service_operation"):
+                try:
+                    self.metrics.record_service_operation(
+                        "graph_database", "startup", 0.0, success=False
+                    )
+                except Exception:
+                    pass
 
     @classmethod
     def from_config(cls, config) -> "GraphDatabase":
@@ -158,6 +177,7 @@ class GraphDatabase(IGraphDatabase):
             raise ValueError("Note must have path and title")
 
         try:
+            op_start = time.time()
             with self.driver.session() as session:
                 result = session.execute_write(self._create_note_tx, note_data)
 
@@ -177,9 +197,28 @@ class GraphDatabase(IGraphDatabase):
                     )
                     result["links_created"] = link_result
 
+                # Record metrics on success
+                if self.metrics and hasattr(self.metrics, "record_service_operation"):
+                    try:
+                        self.metrics.record_service_operation(
+                            "graph_database",
+                            "create_or_update_note",
+                            time.time() - op_start,
+                            success=True,
+                        )
+                    except Exception:
+                        pass
                 return result
         except Neo4jError as e:
             logger.error(f"Error creating/updating note: {e}")
+            # Record metrics on failure
+            if self.metrics and hasattr(self.metrics, "record_service_operation"):
+                try:
+                    self.metrics.record_service_operation(
+                        "graph_database", "create_or_update_note", 0.0, success=False
+                    )
+                except Exception:
+                    pass
             return {"error": str(e)}
 
     def _create_note_tx(self, tx: Transaction, note_data: dict[str, Any]) -> dict[str, Any]:
@@ -326,15 +365,35 @@ class GraphDatabase(IGraphDatabase):
 
         with self.driver.session() as session:
             try:
+                op_start = time.time()
                 # First, let's see what paths are available in the database
                 available_paths = session.execute_read(self._get_available_paths_tx, path)
                 logger.info(f"Available paths matching '{path}': {available_paths}")
 
                 result = session.execute_read(self._get_knowledge_graph_tx, path, depth)
                 logger.debug(f"Knowledge graph result: {result}")
+                # Record metrics on success
+                if self.metrics and hasattr(self.metrics, "record_service_operation"):
+                    try:
+                        self.metrics.record_service_operation(
+                            "graph_database",
+                            "get_note_graph",
+                            time.time() - op_start,
+                            success=True,
+                        )
+                    except Exception:
+                        pass
                 return result
             except Neo4jError as e:
                 logger.error(f"Error getting knowledge graph: {e}")
+                # Record metrics on failure
+                if self.metrics and hasattr(self.metrics, "record_service_operation"):
+                    try:
+                        self.metrics.record_service_operation(
+                            "graph_database", "get_note_graph", 0.0, success=False
+                        )
+                    except Exception:
+                        pass
                 return {"nodes": [], "relationships": []}
 
     def _get_available_paths_tx(self, tx: Transaction, search_term: str) -> list[str]:

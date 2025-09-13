@@ -76,7 +76,7 @@ classDiagram
   GraphNeighborhoodFetcher ..> IGraphDatabase
 ```
 
-Note: Heavy features (analytics, GraphRAG) reside under `jarvis.features.*` and are re-exported via import shims at `jarvis.services.*` to keep import paths stable. The diagrams show service classes generically; consult `src/jarvis/features/` for implementations.
+Note: Analytics and GraphRAG implementations are canonical under `jarvis.services.*`. Former `jarvis.features.*` paths were shims and have been removed.
 
 ## 6. Runtime View
 

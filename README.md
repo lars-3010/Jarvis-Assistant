@@ -181,12 +181,30 @@ Claude Desktop → MCP Server → Plugins (Registry) → Services → Databases/
                                    ├── Structured Formatters (JSON)
                                    ├── Vector Search (DuckDB)
                                    ├── Graph Search (Neo4j)
-                                   └── Vault Access (FS, Configurable Extraction)
+                                   ├── Observability (Metrics)
+                                   └── Vault Access (FS)
 ```
 
 - All tool outputs are structured JSON (schema_version=v1) and include a correlation_id.
 - Tool discovery/execution is handled by a plugin registry (server is declarative).
 - Analytics is event-driven (file changes → cache invalidation) and returns freshness fields.
+- Canonical service implementations live under `src/jarvis/services/`.
+- The former `monitoring/` has been renamed to `observability/` (metrics now; logging/tracing later).
+
+Repository structure (condensed)
+
+```
+src/jarvis/
+  core/            # DI, events, interfaces, registry
+  services/        # canonical service implementations (analytics, graphrag, vector, graph, search, vault, health)
+  mcp/             # MCP server and plugin system (tools in mcp/plugins/tools)
+  database/        # duckdb (vector) and neo4j (graph) configuration/factories
+  observability/   # metrics (and future logging/tracing)
+  extensions/      # optional runtime extensions (e.g., AI/LLM)
+  models/          # shared models
+  utils/           # config, errors, helpers
+  features/        # temporary shims; will be removed after deprecation
+```
 
 ## Common Issues
 
@@ -223,6 +241,7 @@ AI Docs
   - Added GraphRAG MVP tool (`search-graphrag`); continued performance/quality work
   - Maintained compatibility for analytics cache tools; event-driven invalidation planned
   - Began Pydantic v2 cleanup across models and extensions
+  - Renamed `monitoring/` → `observability/`; `JarvisMetrics` moved accordingly
 
 User Configuration
 - Place overrides in `config/local.yaml`; base defaults in `config/base.yaml`.

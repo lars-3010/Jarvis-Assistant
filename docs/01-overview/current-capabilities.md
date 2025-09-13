@@ -38,7 +38,7 @@
 - **Configurable Services**: Easy swapping of implementations
 
 ### Database Flexibility
-- **Multi-Backend Support**: DuckDB (default), Chroma, Pinecone
+- **Database Backends**: DuckDB (vector) and Neo4j (graph)
 - **Migration Tools**: Transfer data between database backends
 - **Adapter Pattern**: Consistent interface across database types
 

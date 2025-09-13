@@ -163,7 +163,7 @@ The implementation supports gradual migration:
 - `src/jarvis/services/graph/database.py` - Implements IGraphDatabase
 - `src/jarvis/services/vault/reader.py` - Implements IVaultReader
 - `src/jarvis/services/health.py` - Implements IHealthChecker
-- `src/jarvis/monitoring/metrics.py` - Implements IMetrics
+- `src/jarvis/observability/metrics.py` - Implements IMetrics
 
 ## Validation
 

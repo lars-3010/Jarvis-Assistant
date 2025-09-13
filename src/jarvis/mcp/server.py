@@ -18,6 +18,7 @@ import mcp.server.stdio
 from jarvis.mcp.container_context import ContainerAwareMCPServerContext
 from jarvis.services.database_initializer import DatabaseInitializer
 from jarvis.utils.config import JarvisSettings, get_settings
+from jarvis.observability.logging_config import configure_logging
 from jarvis.utils.database_errors import DatabaseError, DatabaseErrorHandler
 from jarvis.utils.errors import JarvisError, ServiceUnavailableError, ToolExecutionError
 import logging
@@ -625,18 +626,14 @@ def main() -> None:
         logger.error("No vault configured. Set JARVIS_VAULT_PATH environment variable.")
         sys.exit(1)
 
-    # Configure root logging for standalone run
+    # Configure logging using centralized helper
     try:
-        level = os.getenv("JARVIS_LOG_LEVEL", "INFO")
-        cfg = {
-            "version": 1,
-            "disable_existing_loggers": False,
-            "formatters": {"standard": {"format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"}},
-            "handlers": {"console": {"class": "logging.StreamHandler", "level": level, "formatter": "standard", "stream": "ext://sys.stderr"}},
-            "root": {"level": level, "handlers": ["console"]},
-        }
-        logging.config.dictConfig(cfg)
+        settings = get_settings()
+        level = os.getenv("JARVIS_LOG_LEVEL", settings.log_level)
+        log_file = settings.get_log_file_path()
+        configure_logging(level=level, structured=False, log_file=log_file)
     except Exception:
+        # Fall back silently; server will still run with default logging
         pass
 
     # Run the server

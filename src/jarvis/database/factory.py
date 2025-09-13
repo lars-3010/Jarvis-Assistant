@@ -41,21 +41,6 @@ class VectorDatabaseConfig(DatabaseConfig):
                 database_path=settings.get_vector_db_path(),
                 read_only=settings.vector_db_read_only
             )
-        elif backend_type == 'chroma':
-            return cls(
-                backend_type='chroma',
-                collection_name=getattr(settings, 'chroma_collection_name', 'jarvis-embeddings'),
-                persist_directory=getattr(settings, 'chroma_persist_directory', '~/.jarvis/chroma'),
-                host=getattr(settings, 'chroma_host', None),
-                port=getattr(settings, 'chroma_port', None)
-            )
-        elif backend_type == 'pinecone':
-            return cls(
-                backend_type='pinecone',
-                api_key=getattr(settings, 'pinecone_api_key', None),
-                environment=getattr(settings, 'pinecone_environment', None),
-                index_name=getattr(settings, 'pinecone_index_name', 'jarvis-embeddings')
-            )
         else:
             raise ConfigurationError(f"Unsupported vector database backend: {backend_type}")
 
@@ -76,14 +61,6 @@ class GraphDatabaseConfig(DatabaseConfig):
                 username=settings.neo4j_user,
                 password=settings.neo4j_password,
                 enabled=settings.graph_enabled
-            )
-        elif backend_type == 'arangodb':
-            return cls(
-                backend_type='arangodb',
-                hosts=getattr(settings, 'arango_hosts', 'http://localhost:8529'),
-                database=getattr(settings, 'arango_database', 'jarvis'),
-                username=getattr(settings, 'arango_username', 'root'),
-                password=getattr(settings, 'arango_password', None)
             )
         else:
             raise ConfigurationError(f"Unsupported graph database backend: {backend_type}")

@@ -1,11 +1,10 @@
 """
 Database abstraction layer for Jarvis Assistant.
 
-This module provides the factory pattern and adapters for multiple
-database backends, enabling configuration-driven database selection.
+This module provides the factory pattern for database backends.
+Built-in support targets DuckDB (vector) and Neo4j (graph).
 """
 
-from .adapters import *
 from .factory import DatabaseFactory
 from .migration import DatabaseMigrator
 

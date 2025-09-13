@@ -14,8 +14,8 @@ Claude Desktop → MCP Server → Services → Databases / Filesystem
   - Vector: `database`, `encoder`, `searcher`, `indexer`, `worker` under `src/jarvis/services/vector/`
   - Vault: `reader` under `src/jarvis/services/vault/reader.py:1`
   - Graph: `database` under `src/jarvis/services/graph/`
-  - Analytics: orchestrator + analyzers under `src/jarvis/features/analytics/service.py:1` (import shim at `jarvis.services.analytics`)
-  - Health/Monitoring: `src/jarvis/services/health.py`, `src/jarvis/monitoring/metrics.py`
+  - Analytics: orchestrator + analyzers under `src/jarvis/services/analytics/service.py:1`
+  - Health/Observability: `src/jarvis/services/health.py`, `src/jarvis/observability/metrics.py`
 
 - MCP Plugins
   - Tools under `src/jarvis/mcp/plugins/tools/` (combined, graph, list, health, etc.)
@@ -41,7 +41,7 @@ Claude Desktop → MCP Server → Services → Databases / Filesystem
   - MCP → `GraphDatabase.get_note_graph()` → grouping/formatting → output
 
 - Analytics
-  - MCP → `VaultAnalyticsService` (structure + quality + domains) → cache → formatted output (implementation in `jarvis.features.analytics`, re-exported via `jarvis.services.analytics`)
+  - MCP → `VaultAnalyticsService` (structure + quality + domains) → cache → formatted output (implementation in `jarvis.services.analytics`)
 
 ## Hotspots & Opportunities
 
@@ -63,7 +63,7 @@ Claude Desktop → MCP Server → Services → Databases / Filesystem
 - MCP Server: `src/jarvis/mcp/server.py:1`
 - DI Context: `src/jarvis/mcp/container_context.py:1`
 - Interfaces: `src/jarvis/core/interfaces.py:1`
-- Analytics Service: `src/jarvis/features/analytics/service.py:1` (shim at `src/jarvis/services/analytics/service.py:1`)
+- Analytics Service: `src/jarvis/services/analytics/service.py:1`
 - Combined Search Tool: `src/jarvis/mcp/plugins/tools/search_combined.py:1`
 - Graph Tool: `src/jarvis/mcp/plugins/tools/search_graph.py:1`
 - Get Vault Context Tool: `src/jarvis/mcp/plugins/tools/get_vault_context.py:1`

@@ -202,7 +202,7 @@ class ServiceContainer:
             IVectorEncoder,
             IVectorSearcher,
         )
-        from jarvis.monitoring.metrics import JarvisMetrics
+        from jarvis.observability.metrics import JarvisMetrics
         from jarvis.services.health import HealthChecker
         from jarvis.services.vault.reader import VaultReader
         from jarvis.services.vector.encoder import VectorEncoder
@@ -302,10 +302,21 @@ class ServiceContainer:
         """Register graph database using factory pattern."""
         try:
             from jarvis.database.factory import DatabaseFactory, GraphDatabaseConfig
+            from jarvis.core.interfaces import IMetrics
 
             def graph_db_factory():
                 config = GraphDatabaseConfig.from_settings(self.settings)
-                return DatabaseFactory.create_graph_database(config)
+                # Create instance via factory
+                db = DatabaseFactory.create_graph_database(config)
+                # Inject metrics if available and the instance supports it
+                try:
+                    metrics = self.get(IMetrics)
+                    if hasattr(db, "metrics"):
+                        setattr(db, "metrics", metrics)
+                except Exception:
+                    # Metrics may be disabled or unavailable; proceed without
+                    pass
+                return db
 
             # Register using factory only; do not rely on a concrete class here
             self.register_factory(IGraphDatabase, graph_db_factory, singleton=True)

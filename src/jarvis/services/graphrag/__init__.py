@@ -1,9 +1,9 @@
-"""Import shim for GraphRAG services (moved to features)."""
+"""GraphRAG services (canonical)."""
 
-from jarvis.features.graphrag import (
-    GraphNeighborhoodFetcher,
-    GraphRAGReranker,
-    GraphRAGRetriever,
+from .graph_fetcher import GraphNeighborhoodFetcher
+from .reranker import GraphRAGReranker
+from .retriever import GraphRAGRetriever
+from .service import (
     GraphRAGCluster,
     GraphRAGNode,
     GraphRAGQuery,

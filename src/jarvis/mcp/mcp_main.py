@@ -14,38 +14,7 @@ import sys
 from pathlib import Path
 
 from jarvis.utils.config import get_settings
-
-
-def _configure_logging(level: str = "INFO", structured: bool = False, log_file: Path | None = None) -> None:
-    fmt_standard = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    config = {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "formatters": {
-            "standard": {"format": fmt_standard, "datefmt": "%Y-%m-%d %H:%M:%S"}
-        },
-        "handlers": {
-            "console": {
-                "class": "logging.StreamHandler",
-                "level": level,
-                "formatter": "standard",
-                "stream": "ext://sys.stderr",
-            }
-        },
-        "root": {"level": level, "handlers": ["console"]},
-        "loggers": {"jarvis": {"level": level, "handlers": ["console"], "propagate": False}},
-    }
-    if log_file:
-        log_file.parent.mkdir(parents=True, exist_ok=True)
-        config["handlers"]["file"] = {
-            "class": "logging.FileHandler",
-            "level": level,
-            "formatter": "standard",
-            "filename": str(log_file),
-        }
-        config["root"]["handlers"].append("file")
-        config["loggers"]["jarvis"]["handlers"].append("file")
-    logging.config.dictConfig(config)
+from jarvis.observability.logging_config import configure_logging
 
 
 def setup_mcp_logging():
@@ -55,7 +24,7 @@ def setup_mcp_logging():
 
     # Centralized logging configuration (stderr + optional file)
     # Respect settings.log_level and avoid duplicate handlers
-    _configure_logging(level=settings.log_level, structured=False, log_file=log_file)
+    configure_logging(level=settings.log_level, structured=False, log_file=log_file)
 
 async def main():
     """Main entry point for MCP server."""

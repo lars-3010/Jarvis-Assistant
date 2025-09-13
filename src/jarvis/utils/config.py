@@ -69,23 +69,12 @@ class JarvisSettings(BaseSettings):
     vault_watch: bool = Field(default=True, description="Enable file system watching")
 
     # Vector database settings
-    vector_db_backend: str = Field(default="duckdb", description="Vector database backend: duckdb, chroma, pinecone")
+    vector_db_backend: str = Field(default="duckdb", description="Vector database backend (supported: duckdb)")
     vector_db_path: str = Field(default="~/.jarvis/jarvis-vector.duckdb", description="Path to DuckDB vector database file")
     vector_db_read_only: bool = Field(default=False)
 
-    # ChromaDB settings
-    chroma_collection_name: str = Field(default="jarvis-embeddings")
-    chroma_persist_directory: str | None = Field(default=None)
-    chroma_host: str | None = Field(default=None)
-    chroma_port: int | None = Field(default=None)
-
-    # Pinecone settings
-    pinecone_api_key: str | None = Field(default=None)
-    pinecone_environment: str | None = Field(default=None)
-    pinecone_index_name: str = Field(default="jarvis-embeddings")
-
     # Graph database settings
-    graph_db_backend: str = Field(default="neo4j", description="Graph database backend: neo4j, arangodb")
+    graph_db_backend: str = Field(default="neo4j", description="Graph database backend (supported: neo4j)")
     graph_enabled: bool = Field(default=True, description="Enable graph database integration")
 
     # Neo4j settings
@@ -93,11 +82,6 @@ class JarvisSettings(BaseSettings):
     neo4j_user: str = Field(default="neo4j", description="Neo4j username")
     neo4j_password: str = Field(default="password", description="Neo4j password")
 
-    # ArangoDB settings
-    arango_hosts: str = Field(default="http://localhost:8529")
-    arango_database: str = Field(default="jarvis")
-    arango_username: str = Field(default="root")
-    arango_password: str | None = Field(default=None)
 
     # Embedding settings
     embedding_model_name: str = Field(default="paraphrase-MiniLM-L6-v2", description="Sentence transformer model name")

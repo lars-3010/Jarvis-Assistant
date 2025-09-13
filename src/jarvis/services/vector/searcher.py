@@ -10,7 +10,7 @@ from typing import Any
 
 import torch
 
-from jarvis.core.interfaces import IVectorSearcher
+from jarvis.core.interfaces import IVectorSearcher, IMetrics
 from jarvis.models.document import SearchResult
 from jarvis.services.vector.cache import QueryCache
 from jarvis.services.vector.database import VectorDatabase
@@ -32,7 +32,8 @@ class VectorSearcher(IVectorSearcher):
         vaults: dict[str, Path],
         enable_cache: bool = True,
         cache_size: int = 1000,
-        cache_ttl: int = 3600
+        cache_ttl: int = 3600,
+        metrics: IMetrics | None = None,
     ):
         """Initialize the searcher.
         
@@ -47,6 +48,7 @@ class VectorSearcher(IVectorSearcher):
         self.database = database
         self.encoder = encoder
         self.vaults = vaults
+        self.metrics = metrics
 
         # Initialize cache if enabled
         self.cache = QueryCache(cache_size, cache_ttl) if enable_cache else None
@@ -94,7 +96,11 @@ class VectorSearcher(IVectorSearcher):
         if self.cache:
             cached_results = self.cache.get(query, top_k, vault_name, similarity_threshold)
             if cached_results is not None:
-                self._update_search_stats(time.time() - start_time, True)
+                elapsed = time.time() - start_time
+                self._update_search_stats(elapsed, True)
+                if self.metrics:
+                    self.metrics.record_service_operation("vector_searcher", "search", elapsed, success=True)
+                    self.metrics.record_counter("vector_search_cache_hits")
                 return cached_results
 
         try:
@@ -128,12 +134,19 @@ class VectorSearcher(IVectorSearcher):
             if self.cache:
                 self.cache.put(query, top_k, search_results, vault_name, similarity_threshold)
 
-            self._update_search_stats(time.time() - start_time, False)
+            elapsed = time.time() - start_time
+            self._update_search_stats(elapsed, False)
+            if self.metrics:
+                self.metrics.record_service_operation("vector_searcher", "search", elapsed, success=True)
+                self.metrics.record_gauge("vector_search_results", float(len(search_results)))
             logger.debug(f"Search for '{query[:50]}...': returned {len(search_results)} results")
             return search_results
 
         except Exception as e:
+            elapsed = time.time() - start_time
             logger.error(f"Search failed for query '{query[:50]}...': {e}")
+            if self.metrics:
+                self.metrics.record_service_operation("vector_searcher", "search", elapsed, success=False)
             raise ServiceError(f"Search failed for query '{query[:50]}...': {e}") from e
 
     def search_similar(

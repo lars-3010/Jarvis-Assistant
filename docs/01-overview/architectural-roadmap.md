@@ -87,7 +87,7 @@ searcher = container.get(IVectorSearcher)  # Auto-wired dependencies
 #### Objectives
 - Decouple services from specific database implementations
 - Enable easy switching between database backends
-- Support multiple vector databases (DuckDB, Chroma, Pinecone, etc.)
+- Focus on canonical backends: DuckDB (vector) and Neo4j (graph)
 - Configuration-driven database selection
 
 #### Implementation Plan
@@ -100,25 +100,11 @@ class DatabaseFactory:
     def create_vector_database(config: VectorDBConfig) -> IVectorDatabase:
         if config.type == "duckdb":
             return DuckDBVectorDatabase(config.connection_string)
-        elif config.type == "chroma":
-            return ChromaVectorDatabase(config.connection_string)
-        elif config.type == "pinecone":
-            return PineconeVectorDatabase(config.api_key)
+        # Other backends removed to reduce complexity
 ```
 
 ##### 2.2 Database Adapter Pattern
-```python
-# Multiple backend support
-class ChromaVectorDatabase(IVectorDatabase):
-    def __init__(self, collection_name: str):
-        import chromadb
-        self.client = chromadb.Client()
-        self.collection = self.client.get_or_create_collection(collection_name)
-    
-    def search(self, query_embedding: torch.Tensor, top_k: int = 10) -> List[SearchResult]:
-        # Implement Chroma-specific search logic
-        pass
-```
+Backends other than DuckDB have been removed. The adapter pattern is retained conceptually but not used presently.
 
 ##### 2.3 Migration Utilities
 ```python
@@ -130,7 +116,7 @@ class DatabaseMigrator:
 ```
 
 #### Expected Benefits
-- **Backend Flexibility**: Easy switching between DuckDB, PostgreSQL+pgvector, Chroma
+- **Simplicity First**: Canonical stack uses DuckDB vectors and Neo4j graph
 - **Development Speed**: Mock databases for faster testing
 - **Vendor Independence**: No lock-in to specific database technologies
 - **Performance Optimization**: Choose optimal backend per use case

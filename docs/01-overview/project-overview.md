@@ -44,7 +44,7 @@ Jarvis Assistant bridges this gap by providing:
 **Advanced Features:**
 - Plugin-based architecture for extensible MCP tools
 - Dependency injection system for modular services
-- Multiple database adapters (DuckDB, Chroma, Pinecone support)
+- Canonical databases: DuckDB (vector) and Neo4j (graph)
 - Extensions system for AI workflows and integrations
 - Analytics services for content assessment and domain analysis
   
@@ -58,7 +58,7 @@ Note on modules: Heavy/optional features (analytics, GraphRAG) live under `src/j
 - **Integration**: MCP protocol for AI tool connectivity
 - **Architecture**: Plugin-based with dependency injection, local-first processing
 - **Extensions**: AI workflow automation, LLM integration, analytics services
-- **Database Support**: Multi-backend (DuckDB, Chroma, Pinecone) with migration tools
+- **Database Support**: DuckDB (vector) and Neo4j (graph) with migration tools
 
 ## Next Steps
 

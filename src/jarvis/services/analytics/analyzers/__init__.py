@@ -1,5 +1,11 @@
-"""Import shim for analytics analyzers (moved to features)."""
+"""Analytics analyzers (canonical)."""
 
-# Re-export package to keep import paths stable
-from jarvis.features.analytics.analyzers import *  # noqa: F401,F403
+from .structure import VaultStructureAnalyzer
+from .quality import ContentQualityAnalyzer
+from .domain import KnowledgeDomainAnalyzer
 
+__all__ = [
+    "VaultStructureAnalyzer",
+    "ContentQualityAnalyzer",
+    "KnowledgeDomainAnalyzer",
+]

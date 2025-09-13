@@ -1,158 +1,220 @@
-# Jarvis Assistant — Master Plan, Analysis, and Refactoring Roadmap
+# Jarvis Assistant — Architecture and Restructuring Plan
 
 Version: 2025-09-13 • Owner: Core Team • Status: Active
 
-This single document consolidates and supersedes PLAN.md, analysis.md, and Refactoring.md. It combines strategy, architecture analysis, and the refactoring/migration plan into one living roadmap, updated to the current codebase state.
+This document defines the target architecture, clarifies module boundaries, and provides a concrete migration plan. It supersedes prior guidance where conflicting.
 
-## Current Status and Gaps
+## Key Decisions (authoritative)
 
-Done (high‑level):
-- DI container path is default; traditional path removed
-- MCP PluginRegistry integrated for list/execute
-- Structured responses module in place; key tools support `format: "json"`
-- Analytics and GraphRAG relocated to `features/` with shims to keep imports stable
+- Single canonical service layer under `jarvis/services`.
+  - Move Analytics and GraphRAG implementations from `features/*` into `services/*`.
+  - Keep temporary shims in `features/*` that re-export from `services/*` with deprecation warnings.
+- Database scope: only DuckDB (vector) and Neo4j (graph) for now.
+  - Remove generic database adapters (e.g., Chroma, Pinecone) and adapter registration.
+  - Keep system design adaptable for future backends, but do not ship or maintain concrete adapters at this time.
+- Observability: consolidate metrics (and future logging/tracing) under `jarvis/observability`.
+  - Rename `monitoring/` → `observability/` and keep `metrics.py` there.
+  - Add centralized logging configuration and a tracing stub when needed.
+- Plugins: clarify and separate responsibilities.
+  - `extensions/` remains for optional runtime extensions (e.g., LLM providers), integrating with core/services via DI.
+  - `mcp/plugins/` continues to house MCP tool plugins for Claude Desktop.
+  - Do not duplicate “tools” folders elsewhere; remove empty `jarvis/tools` and `extensions/ai/tools`.
+- Documentation: add README.md to major subfolders to explain purpose, boundaries, and dependency direction.
 
-Gaps:
-- Analytics freshness: event‑driven invalidation not yet wired end‑to‑end
-- GraphRAG: continue quality/perf iteration and docs
-- Pydantic v2 deprecation warnings in a few areas
-- Logging config duplicated; standardize on a single path
-
----
-
-## Architecture & Cleanup Analysis (merged)
-
-High‑level layout (condensed):
+## Target Structure (authoritative)
 
 ```
 src/jarvis/
-  core/         # interfaces, DI, events, registry
-  database/     # DB factories/adapters
-  extensions/   # optional features (AI)
-  mcp/          # server, plugins, schemas, structured outputs
-  models/       # shared data models
-  monitoring/   # metrics
-  services/     # base services + import shims for moved features
-  features/     # heavy/optional features (analytics, graphrag)
-  utils/        # config, errors, helpers
+  core/                # DI container, events, service registry, interfaces
+  database/            # Simple factory/config for current backends (duckdb, neo4j)
+  extensions/          # Optional runtime extensions (e.g., ai/llm); depends on services
+  mcp/                 # MCP server, plugins, discovery/registry, schemas, structured outputs
+    plugins/tools/     # All MCP tool implementations
+  models/              # Shared domain models
+  observability/       # metrics.py (+ future logging_config.py, tracing.py)
+  services/            # Canonical service implementations
+    analytics/         # moved from features/analytics
+    graphrag/          # moved from features/graphrag
+    vector/            # vector database, encoder, indexer, searcher, worker
+    graph/             # graph database integrations
+    search/            # cross-cutting search and ranking logic
+    vault/             # vault reader/parser
+    health.py
+    database_initializer.py
+  utils/               # config, errors, helpers
+
+# Temporary compatibility (to be removed after deprecation period)
+  features/            # shims re-exporting services/* with warnings
 ```
 
-Opportunities:
-- Keep MCP server thin: plugin registry for discovery/execution (done)
-- Structured outputs centralized in `mcp/structured` (ongoing expansion)
-- Make heavy features optional (done via `features/` + shims)
-- Normalize logging and reduce settings init noise
-- Add small registry smoke test + schema round‑trip validation
+### Folder Role Table
 
----
+| Path | Purpose | Notes |
+|------|---------|-------|
+| `core/` | DI, events, interfaces, registry | No service implementations here |
+| `services/` | All service implementations | Depends on `core`, `database`, `models`, `utils`, `observability` |
+| `database/` | Configuration + known backends (duckdb, neo4j) | Remove generic adapters/registrations |
+| `observability/` | Metrics (and future logging/tracing) | Move `monitoring/metrics.py` here |
+| `extensions/` | Optional runtime extensions | Should depend on `services`; no circular deps |
+| `mcp/` | MCP server + plugin system | MCP tools in `mcp/plugins/tools` only |
+| `models/` | Data models | Shared across layers |
+| `utils/` | Config, errors, helpers | Cross-cutting utilities |
+| `features/` | Deprecated import shims | Re-export from `services/*` + `warnings.warn` |
 
-## Roadmap & Workstreams (merged)
+## Architecture (Mermaid)
 
-A) Structured Data Everywhere
-- Define/maintain shared schemas and formatters
-- Ensure all tools support `format: "json"` (markdown remains default)
+```mermaid
+graph TD
+  subgraph Client
+    ClientApp[Claude Desktop]
+  end
 
-B) Analytics + Events
-- Subscribe analytics to file/vault events; invalidate caches intelligently
-- Include freshness/confidence in all analytics responses
-- Tools: `analytics-cache-status` and `analytics-invalidate-cache` (compat maintained)
+  subgraph MCP
+    MCPServer[MCP Server]
+    MCPPlugins[MCP Plugins]
+  end
 
-C) GraphRAG MVP
-- Pipeline: semantic top‑K → graph neighborhood expansion → rerank with graph features
-- Tool: `search-graphrag` with `mode`, `max_sources`, `depth`, `include_content`
-- Performance: strict limits, caching, logging
+  subgraph Core
+    DI[ServiceContainer]
+    Events[Event Bus]
+    Interfaces[Interfaces]
+  end
 
-D) Context‑Aware Search (opt‑in)
-- Session context store + contextual ranking/suggestions
+  subgraph Services
+    SSearch[Search]
+    SVector[Vector]
+    SGraph[Graph]
+    SAnalytics[Analytics]
+    SRAG[GraphRAG]
+    SVault[Vault]
+    SHealth[Health]
+  end
 
-E) Restructure & Refactor (Clarity & Velocity)
-- Boundaries and naming consistency; extract shared structured code
-- Docs refresh to reflect DI, plugin registry, features split
-- Centralize logging configuration and remove ad‑hoc basicConfig usage
+  subgraph Data
+    DuckDB[(DuckDB Vector DB)]
+    Neo4j[(Neo4j Graph DB)]
+  end
 
-F) Config & Packaging
-- Pydantic v2 idioms; secrets handling; containerization polish
-- Add `register_factory` to container or relax signature when using factories
+  subgraph Extensions
+    ExtAI[AI and LLM]
+  end
 
----
+  subgraph Observability
+    Metrics[Metrics]
+  end
 
-## Migration Plan (updated)
+  ClientApp --> MCPServer
+  MCPServer --> MCPPlugins
+  MCPPlugins --> SSearch
+  MCPPlugins --> SAnalytics
+  MCPPlugins --> SRAG
+  MCPPlugins --> SVault
 
-| Phase | Focus | Status |
-|------|-------|--------|
-| 0 | Structured scaffolding (`mcp/structured`) | Done |
-| 1 | JSON coverage across tools | Mostly done; continue incremental |
-| 2 | Event‑driven analytics invalidation | Done |
-| 3 | Plugin registry list/execute | Done |
-| 4 | DI default path | Done |
-| 5 | Boundary reshuffle (search svc, formatters) | In progress |
-| 6 | GraphRAG MVP | In progress |
-| 7 | Move heavy features to `features/` with shims | Done (analytics, graphrag) |
-| 8 | Fix DI container factory registration | Done |
-| 9 | Unify logging configuration | Planned |
-| 10 | Migrate extensions to Pydantic v2 patterns | Done |
+  MCPServer --> DI
+  ExtAI --> DI
+  DI --> Services
+  Services --> Events
+  Services --> Metrics
 
----
+  SVector --> DuckDB
+  SGraph --> Neo4j
 
-## Backlog (cleaned & prioritized)
+  ExtAI --> Services
+```
 
-Top priority
-- AN‑EVT‑1: Verify event emitters and analytics subscription end‑to‑end; ensure cache invalidation triggers on file changes
-- P2‑V2‑1: Reduce remaining Pydantic v2 warnings (ConfigDict/field serializers) across models
-- DOC‑SWP‑1: Sweep legacy docs; clearly note `features/` split and import shims
-- LOG‑UNI‑1: Replace ad‑hoc logging setup with `configure_root_logging` across entry points
+## Migration Plan (overwrite of previous)
 
-High
-- GR‑MVP‑2: Iterate GraphRAG reranking features and result synthesis; add docs
+Phases are cumulative; each includes verification and docs updates. Backwards compatibility maintained via shims until removal in Phase 3.
 
-Medium
-- LOG‑NORM‑1: Normalize logging config; reduce settings init verbosity
-- DOC‑SWP‑1: Sweep legacy docs; add note about `features/` split and import shims
-- EVT‑SAFE‑1: Add `ensure_event_bus_running()` no‑op guard for early publishes
+### Phase 1 — Structure and Documentation (no behavior change)
+- Add README.md files to: `services/`, `extensions/`, `mcp/plugins/`, `observability/` (or `monitoring/` if rename not yet applied) describing purpose and dependency rules.
+- Remove confusing/empty folders: `src/jarvis/tools/`, `src/jarvis/extensions/ai/tools/` (or replace with README that points to `mcp/plugins/tools`).
+- Rename `monitoring/` → `observability/` and move `metrics.py` accordingly; update imports in code to `jarvis.observability.metrics`.
+- Update PLAN.md (this document) and `README.md` to reflect new structure and decisions.
 
-Nice‑to‑have
-- DEMO‑SV‑1: Sample Vault polish and demo scripts
- - TEST‑DI‑1: Add smoke tests for container factory registrations and error paths
- - TEST‑SCHEMA‑1: Round‑trip tests for schema validation and formatter outputs
+Checklist:
+- [ ] Folder READMEs added
+- [ ] Empty tools folders removed or documented
+- [ ] monitoring → observability rename done, imports updated
+- [ ] Top-level docs updated
 
-Completed (recent)
-- FEAT‑SPLIT‑1: Move analytics to `features/analytics` + import shims (done)
-- FEAT‑SPLIT‑2: Move graphrag to `features/graphrag` + import shims (done)
-- DI‑ANL‑1: Register `IVaultAnalyticsService` via container (when enabled) (done)
-- MCP‑REG‑2: PluginRegistry integrated into MCP server list/execute (done)
-- DI‑CORE‑2: DI default path; traditional context removed (done)
-- DOC‑SWP‑0: Architecture docs updated to reflect `features/` + shims and registry integration (done)
-- P2‑V2‑0: Initial Pydantic v2 cleanup: json_encoders replaced with field_serializer; .dict() → model_dump(); Config → ConfigDict in LLM models (done)
+### Phase 2 — Canonical Services
+- Move implementations from `features/analytics` and `features/graphrag` into `services/analytics` and `services/graphrag` respectively (if any code still lives in `features/*`).
+- Keep `features/*` as import shims that re-export from `services/*` and `warnings.warn("Deprecated: import from jarvis.services.*")`.
+- Sweep the repo and update all internal imports to `jarvis.services.*`.
 
----
+Checklist:
+- [ ] Implementations live under `services/*`
+- [ ] Shims in `features/*` with deprecation warnings
+- [ ] `rg` shows no internal imports from `features.*`
 
-## Immediate Next Steps (1–2 days)
+### Phase 3 — Database Simplification
+- Remove generic database adapters and registrations for backends we don’t ship (Chroma, Pinecone).
+- Simplify `database/factory.py` to only recognize `duckdb` for vectors and `neo4j` for graph; remove dynamic backend registration pattern and adapter discovery.
+- Keep configuration classes minimal and focused on current backends; document how future adapters would be added.
 
-1) Docs sweep
-- Short note in `docs/` on new `features/` location and shims; update any remaining diagrams or pages
+Checklist:
+- [ ] Delete `jarvis/database/adapters/*`
+- [ ] Slim `DatabaseFactory` to duckdb+neo4j only
+- [ ] Container factories updated; tests/smoke paths verified
 
-2) Pydantic v2 cleanup
-- Monitor and reduce any remaining deprecation warnings during runtime/tests
+### Phase 4 — Observability Expansion (optional)
+- Add `logging_config.py` with a single `configure_root_logging(settings)` used by entry points.
+- Add a `tracing.py` stub to stage future tracing.
 
-3) Logging unification
-- Replace `basicConfig` usages with `configure_root_logging`; ensure no duplicate handlers
+Checklist:
+- [ ] Centralized logging
+- [ ] Tracing stub
 
----
+## Step-by-Step Instructions
 
-## Risks & Mitigations
-- Latency in GraphRAG → strict limits, caching, streaming
-- Schema drift → central schemas + round‑trip tests
-- Deprecations → targeted v2 cleanup to reduce noise
-- Confusion about locations → shims + docs sweep
+1) Create subfolder READMEs
+- `services/README.md`: role, dependency direction, module index
+- `extensions/README.md`: how extensions integrate, DI guidance
+- `mcp/plugins/README.md`: plugin lifecycle, tool schema, DI usage
+- `observability/README.md`: metrics now, logging/tracing later
 
----
+2) Rename monitoring → observability
+- Move `src/jarvis/monitoring/metrics.py` → `src/jarvis/observability/metrics.py`.
+- Update imports: `from jarvis.monitoring.metrics import ...` → `from jarvis.observability.metrics import ...`.
+
+3) Clean up tools folders
+- Remove `src/jarvis/tools/` (unused) and `src/jarvis/extensions/ai/tools/` (empty) or replace with README pointing to `mcp/plugins/tools`.
+
+4) Consolidate features into services
+- Ensure canonical code under `services/*`.
+- Keep `features/*` shims with `warnings.warn` and re-exports to preserve backward compatibility.
+
+5) Database simplification
+- Delete `database/adapters/` and remove adapter registration from `database/factory.py`.
+- Keep only duckdb (vector) and neo4j (graph) creation paths.
+
+6) Docs & diagrams
+- Update `README.md` architecture section to match this plan.
+- Keep the Mermaid diagram above as the reference architecture.
+
+## Compatibility & Risk
+
+- Imports from `features.*` continue to work during deprecation window via shims with warnings.
+- MCP tools unaffected; they consume services via DI.
+- Removing adapters is safe given we don’t ship those backends; document this in release notes.
+- The `monitoring` → `observability` rename requires import updates; perform in one PR to avoid breakage.
+
+## Current Status Snapshot
+
+- DI container default path: done
+- MCP plugin registry integration: done
+- Structured outputs in MCP: in place and growing
+- Analytics event-driven invalidation: wired; continue to refine
+- GraphRAG MVP: implemented; iterate ranking/cluster quality
+- Pydantic v2: largely done; sweep remaining warnings
 
 ## References
-- MCP server, plugins, schemas: `src/jarvis/mcp/`
-- Features (analytics, graphrag): `src/jarvis/features/`
-- Service shims for compatibility: `src/jarvis/services/analytics`, `src/jarvis/services/graphrag`
-- DI container: `src/jarvis/core/container.py`
 
----
+- DI container: `src/jarvis/core/container.py`
+- MCP server and plugins: `src/jarvis/mcp/`
+- Services (canonical): `src/jarvis/services/`
+- Observability (metrics): `src/jarvis/observability/metrics.py` (after rename)
+- Database factory: `src/jarvis/database/factory.py`
 
 End of document.

@@ -75,8 +75,8 @@ Use **DuckDB with vector extensions** as the primary vector database instead of 
 | Database | Local | Performance | Ease of Use | Memory | SQL Support |
 |----------|-------|-------------|-------------|---------|-------------|
 | **DuckDB** | ✅ | 8/10 | 9/10 | 8/10 | ✅ |
-| Pinecone | ❌ | 10/10 | 8/10 | N/A | ❌ |
-| Chroma | ✅ | 7/10 | 7/10 | 6/10 | ❌ |
+| Pinecone | ❌ | — | — | — | ❌ |
+| Chroma | ❌ | — | — | — | ❌ |
 | Weaviate | ❌ | 9/10 | 6/10 | N/A | ❌ |
 
 ### Consequences

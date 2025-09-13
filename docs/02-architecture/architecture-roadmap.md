@@ -182,17 +182,14 @@ class DatabaseFactory:
     def create_vector_database(config: VectorDatabaseConfig) -> IVectorDatabase:
         if config.backend == "duckdb":
             return DuckDBVectorDatabase(config)
-        elif config.backend == "chroma":
-            return ChromaVectorDatabase(config)
-        elif config.backend == "pinecone":
-            return PineconeVectorDatabase(config)
+        # non-DuckDB backends were removed
         else:
             raise ValueError(f"Unsupported vector database: {config.backend}")
 
 # Configuration Enhancement
 @dataclass
 class VectorDatabaseConfig:
-    backend: str  # "duckdb", "chroma", "pinecone"
+    backend: str  # "duckdb"
     connection_params: Dict[str, Any]
     performance_settings: Dict[str, Any]
 ```
