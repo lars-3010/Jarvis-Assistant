@@ -607,6 +607,23 @@ echo "Development setup complete!"
 
 ---
 
+## Schema Patterns
+
+When adding or updating MCP plugins, follow these patterns to keep inputs/outputs consistent and AI‑friendly:
+
+- Use centralized schema builders from `jarvis.mcp.schemas`:
+  - Search: `create_search_schema(SearchSchemaConfig)`
+  - Graph: `create_graph_schema(...)`
+  - Vault ops: `create_vault_schema(VaultSchemaConfig)`
+  - Utility/Analytics: `create_utility_schema(UtilitySchemaConfig)` / `create_analytics_schema(...)`
+- Prefer JSON as the default (and typically only) output format. Expose `format` with `supported_formats=["json"]` unless a markdown view is truly necessary.
+- Return structured payloads using functions in `jarvis.mcp.structured` and include `schema_version` and `correlation_id` when applicable.
+- Validate and bound inputs via schema config (e.g., `limit`, `depth`) and re‑validate in code for safety.
+
+Checklist: see `docs/05-development/plugin-schema-checklist.md`.
+
+---
+
 ## Next Steps
 
 - [Testing Strategy](testing-strategy.md) - Comprehensive testing approach

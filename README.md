@@ -66,6 +66,16 @@ export JARVIS_LOG_FILE="$(pwd)/temporary/logs/mcp_server.log"
 uv run jarvis-mcp-stdio
 ```
 
+### Run Tests
+
+```bash
+# Install dependencies
+uv sync
+
+# Run the test suite (quiet)
+uv run pytest -q
+```
+
 ## Basic Usage Example
 
 Once running, the MCP server provides these tools to Claude Desktop & other AI systems:

@@ -57,14 +57,10 @@ class ListVaultsPlugin(UtilityPlugin):
     def get_tool_definition(self) -> types.Tool:
         """Get the MCP tool definition with standardized schema."""
         schema_config = UtilitySchemaConfig(
-            supported_formats=["json", "markdown"],
+            supported_formats=["json"],
             additional_properties={},
         )
         input_schema = create_utility_schema(schema_config)
-
-        # Prefer JSON as default for machine consumption
-        if "format" in input_schema["properties"]:
-            input_schema["properties"]["format"]["default"] = "json"
 
         return types.Tool(
             name=self.name,

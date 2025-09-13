@@ -35,6 +35,7 @@ For developers who want to contribute or modify the system.
 
 - **[developer-guide.md](05-development/developer-guide.md)** - Local development setup, workflow, and debugging
 - **[testing-strategy.md](05-development/testing-strategy.md)** - Running tests and adding new test coverage
+- **[plugin-schema-checklist.md](05-development/plugin-schema-checklist.md)** - Checklist for adding/updating MCP plugins and schemas
 - **[code-standards.md](05-development/code-standards.md)** - Coding conventions, linting, and code quality
 - **[contribution-guide.md](05-development/contribution-guide.md)** - How to contribute, PR process, and communication
 - **[extension-development.md](05-development/extension-development.md)** - ⭐ Creating extensions for AI and custom functionality *(New in Phase 0)*

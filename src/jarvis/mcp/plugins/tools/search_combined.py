@@ -216,7 +216,7 @@ class SearchCombinedPlugin(SearchPlugin):
             enable_vault_selection=True,
             default_limit=10,
             max_limit=50,
-            supported_formats=["json", "markdown"],
+            supported_formats=["json"],
         )
 
         input_schema = create_search_schema(schema_config)
@@ -414,8 +414,14 @@ class SearchCombinedPlugin(SearchPlugin):
                 payload["correlation_id"] = str(uuid4())
                 return [types.TextContent(type="text", text=json.dumps(payload, indent=2))]
             else:
-                response_lines = self._format_results(unified_results, query, fusion)
-                return [types.TextContent(type="text", text="\n".join(response_lines))]
+                # Fallback to JSON if an unsupported format is requested
+                payload = combined_search_to_json(
+                    query=query,
+                    unified_results=unified_results,
+                    execution_time_ms=int(total_duration * 1000),
+                )
+                payload["correlation_id"] = str(uuid4())
+                return [types.TextContent(type="text", text=json.dumps(payload, indent=2))]
 
         except Exception as e:
             total_duration = time.time() - start_time

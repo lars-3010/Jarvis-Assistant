@@ -61,7 +61,7 @@ class ReadNotePlugin(VaultPlugin):
         schema_config = VaultSchemaConfig(
             path_required=True,
             enable_vault_selection=True,
-            supported_formats=["markdown", "json"]
+            supported_formats=["json"]
         )
 
         # Generate standardized schema
@@ -83,7 +83,7 @@ class ReadNotePlugin(VaultPlugin):
         """Execute note reading."""
         path = arguments.get("path", "").strip()
         vault_name = arguments.get("vault")
-        output_format = arguments.get("format", "markdown")
+        output_format = arguments.get("format", "json")
 
         # Validate input
         if not path:
@@ -140,21 +140,26 @@ class ReadNotePlugin(VaultPlugin):
                 )
                 return [types.TextContent(type="text", text=json.dumps(json_data, indent=2))]
 
-            # Default markdown format
-            response_lines = [
-                f"# {metadata.get('path', path)}",
-                "",
-                f"**Size:** {metadata.get('size', 0)} bytes",
-                f"**Modified:** {metadata.get('modified_formatted', 'Unknown')}",
-                "",
-                "---",
-                "",
-                content
-            ]
+            # Fallback to JSON even if markdown requested (schema is JSON-only)
+            last_modified = None
+            if 'modified_formatted' in metadata:
+                last_modified = metadata['modified_formatted']
+            elif 'modified' in metadata:
+                try:
+                    from datetime import datetime
+                    last_modified = datetime.fromtimestamp(metadata['modified']).isoformat()
+                except:
+                    pass
 
-            response = "\n".join(response_lines)
-
-            return [types.TextContent(type="text", text=response)]
+            json_data = read_note_to_json(
+                path=path,
+                content=content,
+                vault_name=vault_name,
+                size_bytes=metadata.get('size', len(content.encode('utf-8'))),
+                last_modified=last_modified,
+                metadata=metadata,
+            )
+            return [types.TextContent(type="text", text=json.dumps(json_data, indent=2))]
 
         except ServiceError as e:
             logger.error(f"Error reading note {path}: {e}")

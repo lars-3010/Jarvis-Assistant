@@ -53,7 +53,7 @@ class AnalyzeDomainsPlugin(UtilityPlugin):
     def get_tool_definition(self) -> types.Tool:
         """Get the MCP tool definition using standardized schema."""
         schema_config = UtilitySchemaConfig(
-            supported_formats=["json", "markdown"],
+            supported_formats=["json"],
             additional_properties={
                 "vault": {
                     "type": "string",
@@ -104,7 +104,7 @@ class AnalyzeDomainsPlugin(UtilityPlugin):
 
             # Extract arguments
             vault_name = arguments.get("vault", "default")
-            output_format = arguments.get("format", "markdown")
+            output_format = arguments.get("format", "json")
             include_bridges = arguments.get("include_bridges", True)
             include_clusters = arguments.get("include_clusters", True)
             show_connections = arguments.get("show_connections", True)

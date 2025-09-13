@@ -53,7 +53,7 @@ class GetVaultContextPlugin(UtilityPlugin):
     def get_tool_definition(self) -> types.Tool:
         """Get the MCP tool definition using standardized schema."""
         schema_config = UtilitySchemaConfig(
-            supported_formats=["json", "markdown"],
+            supported_formats=["json"],
             additional_properties={
                 "vault": {
                     "type": "string",
@@ -93,7 +93,7 @@ class GetVaultContextPlugin(UtilityPlugin):
 
             # Extract arguments
             vault_name = arguments.get("vault", "default")
-            output_format = arguments.get("format", "markdown")
+            output_format = arguments.get("format", "json")
             include_recommendations = arguments.get("include_recommendations", True)
             include_quality_gaps = arguments.get("include_quality_gaps", True)
 

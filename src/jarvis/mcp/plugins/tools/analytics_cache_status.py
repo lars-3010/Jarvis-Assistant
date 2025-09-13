@@ -57,7 +57,7 @@ class AnalyticsCacheStatusPlugin(UtilityPlugin):
 
         # Create standardized utility schema (add debug flag via additional_properties)
         schema_config = UtilitySchemaConfig(
-            supported_formats=["json", "markdown"],
+            supported_formats=["json"],
             additional_properties={
                 "debug": {
                     "type": "boolean",
@@ -77,7 +77,7 @@ class AnalyticsCacheStatusPlugin(UtilityPlugin):
 
     async def execute(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         """Execute analytics cache status check."""
-        output_format = arguments.get("format", "markdown")
+        output_format = arguments.get("format", "json")
         debug = arguments.get("debug", False)
 
         start_time = time.time()

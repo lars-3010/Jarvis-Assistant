@@ -57,7 +57,7 @@ class AnalyticsInvalidateCachePlugin(UtilityPlugin):
 
         # Create standardized utility schema (add vault_name and debug via additional_properties)
         schema_config = UtilitySchemaConfig(
-            supported_formats=["json", "markdown"],
+            supported_formats=["json"],
             additional_properties={
                 "vault_name": {
                     "type": "string",
@@ -83,7 +83,7 @@ class AnalyticsInvalidateCachePlugin(UtilityPlugin):
     async def execute(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         """Execute analytics cache invalidation."""
         vault_name = arguments.get("vault_name")
-        output_format = arguments.get("format", "markdown")
+        output_format = arguments.get("format", "json")
         debug = arguments.get("debug", False)
 
         start_time = time.time()

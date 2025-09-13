@@ -66,7 +66,7 @@ class SemanticSearchPlugin(SearchPlugin):
             enable_vault_selection=True,
             max_limit=50,
             default_limit=10,
-            supported_formats=["markdown", "json"]
+            supported_formats=["json"]
         )
 
         # Generate standardized schema
@@ -87,7 +87,7 @@ class SemanticSearchPlugin(SearchPlugin):
         limit = arguments.get("limit", 10)
         vault_name = arguments.get("vault")
         similarity_threshold = arguments.get("similarity_threshold")
-        output_format = arguments.get("format", "markdown")
+        output_format = arguments.get("format", "json")
 
         start_time = time.time()
 

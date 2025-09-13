@@ -49,60 +49,62 @@ class SearchGraphRAGPlugin(SearchPlugin):
         return [IVectorSearcher, IGraphDatabase]
 
     def get_tool_definition(self) -> types.Tool:
-        from jarvis.mcp.schemas import get_schema_manager
-        schema_manager = get_schema_manager()
-        
-# Use advanced search schema for GraphRAG
-        schema = {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Natural language search query"
-                },
+        # Standardized schema using search template + additional properties
+        from jarvis.mcp.schemas import SearchSchemaConfig, create_search_schema
+
+        schema_config = SearchSchemaConfig(
+            query_required=True,
+            enable_similarity_threshold=False,  # Not used directly in GraphRAG
+            enable_vault_selection=True,
+            max_limit=20,
+            default_limit=5,
+            supported_formats=["json"],  # JSON-only for AI consumption
+            additional_properties={
                 "mode": {
-                    "type": "string", 
-                    "enum": ["quick", "focused", "comprehensive"], 
+                    "type": "string",
+                    "enum": ["quick", "focused", "comprehensive"],
                     "default": "quick",
-                    "description": "Search depth and thoroughness"
+                    "description": "Search depth and thoroughness",
                 },
                 "max_sources": {
-                    "type": "integer", 
-                    "default": 5, 
-                    "minimum": 1, 
+                    "type": "integer",
+                    "default": 5,
+                    "minimum": 1,
                     "maximum": 20,
-                    "description": "Maximum number of source documents to analyze"
+                    "description": "Maximum number of semantic sources to expand",
                 },
                 "depth": {
-                    "type": "integer", 
-                    "default": 1, 
-                    "minimum": 1, 
+                    "type": "integer",
+                    "default": 1,
+                    "minimum": 1,
                     "maximum": 3,
-                    "description": "Graph traversal depth"
-                },
-                "vault": {
-                    "type": "string",
-                    "description": "Optional vault name to search within"
+                    "description": "Graph neighborhood depth for expansion",
                 },
                 "include_content": {
                     "type": "boolean",
-                    "default": True,
-                    "description": "Whether to include content previews"
+                    "default": False,
+                    "description": "Include content previews for top sources",
                 },
-                "enable_clustering": {
-                    "type": "boolean",
-                    "default": True,
-                    "description": "Whether to enable result clustering"
-                }
+                "semantic_threshold": {
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "description": "Optional threshold to filter semantic results (0.0-1.0)",
+                },
+                "graph_boost": {
+                    "type": "number",
+                    "default": 0.3,
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "description": "Weight to emphasize graph connectivity in reranking",
+                },
             },
-            "required": ["query"]
-        }
-
-        return types.Tool(
-            name=self.name,
-            description=self.description,
-            inputSchema=schema
         )
+
+        input_schema = create_search_schema(schema_config)
+        input_schema["properties"]["query"]["description"] = "Natural language search query"
+
+        return types.Tool(name=self.name, description=self.description, inputSchema=input_schema)
 
     async def execute(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         """Execute comprehensive GraphRAG search using the new service architecture."""
@@ -142,79 +144,69 @@ class SearchGraphRAGPlugin(SearchPlugin):
                 max_sources=int(arguments.get("max_sources", 5)),
                 depth=int(arguments.get("depth", 1)),
                 vault_name=arguments.get("vault"),
-                include_content=arguments.get("include_content", True),
-                enable_clustering=arguments.get("enable_clustering", True)
+                include_content=bool(arguments.get("include_content", False)),
+                semantic_threshold=arguments.get("semantic_threshold"),
+                graph_boost=float(arguments.get("graph_boost", 0.3)),
             )
 
             # Execute comprehensive GraphRAG search
             result = await graphrag_service.search(query_config)
 
-            # Convert to structured response format
-            sources = [
-                {
-                    "path": str(item.path),
-                    "vault_name": item.vault_name,
-                    "semantic_score": float(item.semantic_score),
-                    "graph_score": float(item.graph_score),
-                    "unified_score": float(item.unified_score),
-                    "content_preview": item.content_preview[:200] + "..." if item.content_preview and len(item.content_preview) > 200 else item.content_preview,
-                    "cluster_id": item.cluster_id
-                }
-                for item in result.ranked_results
+            # Convert to structured response using features.GraphRAGService result
+            duration_ms = int((time.time() - start) * 1000)
+
+            # Sources are already in dict form in the features service result
+            sources = result.sources if isinstance(result.sources, list) else []
+
+            # Build a single GraphData item aggregating nodes/relationships
+            rel_types = set()
+            rel_dicts: list[dict] = []
+            for rel in result.relationships or []:
+                if hasattr(rel, "__dict__"):
+                    d = {**rel.__dict__}
+                elif isinstance(rel, dict):
+                    d = dict(rel)
+                else:
+                    d = {}
+                rel_types.add(d.get("relationship_type", d.get("type", "UNKNOWN")))
+                rel_dicts.append(d)
+
+            node_dicts: list[dict] = []
+            for node in result.nodes or []:
+                if hasattr(node, "__dict__"):
+                    node_dicts.append({**node.__dict__})
+                elif isinstance(node, dict):
+                    node_dicts.append(dict(node))
+
+            metrics_dict = {
+                "nodes": len(node_dicts),
+                "relationships": len(rel_dicts),
+                "relationship_types": len(rel_types),
+            }
+
+            center_path = sources[0]["path"] if sources else query
+            graphs = [
+                GraphData(
+                    center_path=center_path,
+                    nodes=node_dicts,
+                    relationships=rel_dicts,
+                    metrics=metrics_dict,
+                )
             ]
 
-            graph_items = []
-            for graph_data in result.graph_data:
-                nodes = [asdict(node) for node in graph_data.nodes]
-                relationships = [asdict(rel) for rel in graph_data.relationships]
-
-                metrics_dict = {
-                    "nodes": len(nodes),
-                    "relationships": len(relationships),
-                    "relationship_types": len({rel.get("type", "UNKNOWN") for rel in relationships}),
-                    "cluster_count": len(result.clusters) if result.clusters else 0
-                }
-
-                graph_items.append(GraphData(
-                    center_path=graph_data.center_path,
-                    nodes=nodes,
-                    relationships=relationships,
-                    metrics=metrics_dict
-                ))
-
-            # Add cluster information
-            clusters = [
-                {
-                    "id": cluster.id,
-                    "center_path": cluster.center_path,
-                    "member_paths": cluster.member_paths,
-                    "strength": cluster.strength,
-                    "description": cluster.description
-                }
-                for cluster in result.clusters
-            ] if result.clusters else []
-
-            duration_ms = int((time.time() - start) * 1000)
             limits = {
                 "mode": query_config.mode,
                 "max_sources": query_config.max_sources,
                 "depth": query_config.depth,
                 "include_content": query_config.include_content,
-                "enable_clustering": query_config.enable_clustering
+                "semantic_threshold": query_config.semantic_threshold,
+                "graph_boost": query_config.graph_boost,
             }
 
-            # Build comprehensive payload
-            payload = graphrag_to_json(query, sources, graph_items, duration_ms, limits)
-            payload.update({
-                "correlation_id": str(uuid4()),
-                "clusters": clusters,
-                "search_metadata": {
-                    "total_semantic_results": len(result.semantic_results),
-                    "total_graph_expansions": len(result.graph_data),
-                    "reranking_applied": True,
-                    "clustering_applied": query_config.enable_clustering and len(clusters) > 0
-                }
-            })
+            payload = graphrag_to_json(query, sources, graphs, duration_ms, limits)
+            payload["correlation_id"] = str(uuid4())
+            payload["graph_metrics"] = result.graph_metrics if isinstance(result.graph_metrics, dict) else {}
+            payload["search_path"] = result.search_path
 
             return [types.TextContent(type="text", text=json.dumps(payload, indent=2))]
 
@@ -224,4 +216,3 @@ class SearchGraphRAGPlugin(SearchPlugin):
         except Exception as e:
             logger.error(f"Unexpected error in GraphRAG search: {e}")
             return [types.TextContent(type="text", text=json.dumps({"error": f"Search failed: {e!s}"}))]
-
