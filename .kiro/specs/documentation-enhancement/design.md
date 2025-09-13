@@ -61,7 +61,7 @@ graph TB
 
 #### Component Structure
 ```
-docs/02-system-design/interactive/
+docs/02-architecture/interactive/
 ├── architecture-explorer.html          # Main interactive diagram
 ├── component-details/                   # Detailed component specs
 │   ├── mcp-server.md                   # MCP server internals
@@ -146,7 +146,7 @@ class VectorServiceInterface:
 
 #### Performance Documentation Structure
 ```
-docs/02-system-design/performance/
+docs/02-architecture/performance/
 ├── benchmarks.md                       # Performance benchmarks and baselines
 ├── profiling-guide.md                  # How to profile and identify bottlenecks
 ├── optimization-strategies.md          # Proven optimization techniques

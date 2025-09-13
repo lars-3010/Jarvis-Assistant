@@ -3,7 +3,7 @@ Implement functionality following design specifications: [description]
 Execute developer-agent to write production-ready Python code following design.md and coding-standards.md.
 
 **Agent**: developer-agent
-**Guidelines**: `.claude/guidelines/coding-standards.md`
+**Guidelines**: `ai-docs/guidelines/coding-standards.md`
 **Context**: Loads design.md and tasks.md from `.kiro/specs/` subfolder for implementation guidance
 **Output**: Clean Python code with tests, type hints, and documentation
 **Focus**: FastAPI/Django, SQLAlchemy, pytest, modular architecture

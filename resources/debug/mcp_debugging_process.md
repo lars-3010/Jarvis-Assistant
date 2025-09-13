@@ -9,14 +9,13 @@ MCP server "jarvis": Connection failed: McpError: MCP error -32000: Connection c
 ## Root Cause Analysis
 
 ### 1. Initial Investigation
-The MCP server was working when run manually via `uv run jarvis mcp --vault "..."` but failing when started by Claude Code.
+The MCP server was working when run manually via `uv run jarvis-mcp-stdio` (with appropriate env vars) but failing when started by Claude Code.
 
 ### 2. Key Discovery
 The issue was that the MCP server was using `sys.stdout` for logging, which interferes with the MCP protocol that requires clean stdout for JSON-RPC communication.
 
 **Location of the issue:**
-- `src/jarvis/utils/logging.py:64` - Console handler using `sys.stdout`
-- `src/jarvis/utils/logging.py:109` - Root logger configuration using stdout
+- `src/jarvis/utils/logging.py` - Console handler using `sys.stdout` (now redirected to stderr in MCP entrypoints)
 
 ### 3. MCP Protocol Requirements
 - **stdout**: Must be reserved for JSON-RPC MCP protocol messages only
@@ -46,10 +45,7 @@ def test_mcp_server():
     os.chdir(project_dir)
     
     # Run the MCP server command
-    cmd = [
-        "uv", "run", "jarvis", "mcp", 
-        "--vault", "${JARVIS_VAULT_PATH}"
-    ]
+    cmd = ["uv", "run", "jarvis-mcp-stdio"]
     
     print(f"Running command: {' '.join(cmd)}", file=sys.stderr)
     print(f"Working directory: {os.getcwd()}", file=sys.stderr)
@@ -218,7 +214,7 @@ if __name__ == "__main__":
 **Issue**: This approach had dependency issues when running outside the UV environment.
 
 ### Step 3: Final Solution - Dedicated MCP Entry Point
-Created `src/jarvis/mcp/mcp_main.py` with proper stdio handling:
+Use `jarvis-mcp-stdio` from `src/jarvis/mcp/mcp_main.py` with proper stdio handling:
 
 ```python
 #!/usr/bin/env python3
@@ -340,7 +336,7 @@ python3 mcp_wrapper.py
 ### pyproject.toml Addition
 ```toml
 [project.scripts]
-jarvis = "jarvis.main:main"
+jarvis-mcp-stdio = "jarvis.mcp.mcp_main:main_sync"
 jarvis-mcp = "jarvis.mcp.server:main"
 jarvis-mcp-stdio = "jarvis.mcp.mcp_main:main_sync"
 ```

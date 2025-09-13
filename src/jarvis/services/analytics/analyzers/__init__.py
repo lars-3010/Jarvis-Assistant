@@ -1,8 +1,5 @@
-"""
-Analytics analyzers for vault analysis.
+"""Import shim for analytics analyzers (moved to features)."""
 
-This package contains specialized analyzers for different aspects of vault analysis:
-- Structure analysis (organization patterns, folder hierarchy)
-- Quality analysis (content assessment, improvement suggestions)
-- Domain analysis (knowledge clustering, relationship mapping)
-"""
+# Re-export package to keep import paths stable
+from jarvis.features.analytics.analyzers import *  # noqa: F401,F403
+

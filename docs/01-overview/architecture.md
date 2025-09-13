@@ -1,3 +1,9 @@
+# DEPRECATION NOTICE
+
+This page is superseded by the consolidated architecture docs:
+- docs/architecture/arc42.md (primary)
+- docs/architecture/architecture-map.md (visual map)
+
 # System Architecture
 
 *Version: 3.0 | Date: 2024-12-15*

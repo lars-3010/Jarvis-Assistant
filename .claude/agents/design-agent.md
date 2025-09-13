@@ -17,7 +17,7 @@ Create comprehensive system design with architectural visualization, code exampl
 ## Process:
 1. **READ INPUTS**: Use read tool for `.kiro/specs/$ARGUMENTS/requirements.md`
 2. **READ TEMPLATE**: Use read tool for `.claude/templates/design-template.md`
-3. **READ GUIDELINES**: Use read tool for `.claude/guidelines/architectural-guidelines.md`
+3. **READ GUIDELINES**: Use read tool for `ai-docs/guidelines/architectural-guidelines.md`
 4. **CREATE DESIGN**: Use write tool for `.kiro/specs/$ARGUMENTS/design.md`
 5. **POPULATE COMPREHENSIVELY**: Include diagrams, code examples, detailed decisions
 

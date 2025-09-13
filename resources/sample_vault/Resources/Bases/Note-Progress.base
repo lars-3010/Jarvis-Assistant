@@ -1,0 +1,72 @@
+views:
+  - type: table
+    name: MOCs 🗺️
+    filters:
+      and:
+        - tags.contains("🗺️")
+    order:
+      - file.name
+      - "up::"
+      - leads to
+      - similar
+    sort:
+      - property: file.name
+        direction: DESC
+      - property: "up::"
+        direction: ASC
+      - property: leads to
+        direction: DESC
+      - property: similar
+        direction: ASC
+    columnSize:
+      "note.up::": 186
+      note.leads to: 131
+      note.similar: 85
+  - type: table
+    name: 🌱 Seedling
+    filters:
+      and:
+        - tags.contains("🌱")
+    order:
+      - file.name
+      - summary
+      - tags
+      - domains
+      - sources
+      - "up::"
+      - reviewed
+    sort:
+      - property: file.name
+        direction: ASC
+      - property: similar
+        direction: ASC
+      - property: source
+        direction: ASC
+      - property: file.mtime
+        direction: ASC
+    columnSize:
+      file.name: 178
+      note.tags: 43
+      note.domains: 125
+      note.sources: 201
+      "note.up::": 202
+      note.reviewed: 118
+  - type: table
+    name: atomic
+    filters:
+      and:
+        - tags.contains("⚛︎")
+    order:
+      - file.name
+      - "up::"
+      - leads to
+      - similar
+    sort:
+      - property: leads to
+        direction: ASC
+      - property: file.name
+        direction: ASC
+    columnSize:
+      "note.up::": 186
+      note.leads to: 131
+      note.similar: 85

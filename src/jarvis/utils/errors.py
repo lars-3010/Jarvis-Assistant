@@ -2,18 +2,18 @@
 Custom exception classes for Jarvis Assistant.
 """
 
-from typing import List, Optional, Dict, Any
+from typing import Any
 
 
 class JarvisError(Exception):
     """Base exception for all Jarvis Assistant errors."""
-    
+
     def __init__(
-        self, 
-        message: str, 
-        error_code: Optional[str] = None,
-        suggestions: Optional[List[str]] = None,
-        context: Optional[Dict[str, Any]] = None
+        self,
+        message: str,
+        error_code: str | None = None,
+        suggestions: list[str] | None = None,
+        context: dict[str, Any] | None = None
     ):
         """Initialize Jarvis error with enhanced information.
         

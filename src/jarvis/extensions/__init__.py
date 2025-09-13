@@ -29,50 +29,48 @@ Usage:
     # Extensions are shut down automatically
 """
 
-from jarvis.extensions.interfaces import (
-    IExtension,
-    IExtensionManager,
-    ExtensionStatus,
-    ExtensionHealth,
-    ExtensionMetadata,
-    MCPTool,
-)
-
-from jarvis.extensions.manager import ExtensionManager
-from jarvis.extensions.loader import ExtensionLoader
-from jarvis.extensions.registry import ExtensionRegistry
-from jarvis.extensions.validation import ExtensionValidator
-
 from jarvis.extensions.errors import (
-    ExtensionError,
-    ExtensionLoadError,
-    ExtensionInitializationError,
+    ExtensionAlreadyLoadedError,
     ExtensionConfigurationError,
     ExtensionDependencyError,
-    ExtensionToolError,
+    ExtensionError,
+    ExtensionInitializationError,
+    ExtensionLoadError,
     ExtensionNotFoundError,
-    ExtensionAlreadyLoadedError,
+    ExtensionToolError,
 )
+from jarvis.extensions.interfaces import (
+    ExtensionHealth,
+    ExtensionMetadata,
+    ExtensionStatus,
+    IExtension,
+    IExtensionManager,
+    MCPTool,
+)
+from jarvis.extensions.loader import ExtensionLoader
+from jarvis.extensions.manager import ExtensionManager
+from jarvis.extensions.registry import ExtensionRegistry
+from jarvis.extensions.validation import ExtensionValidator
 
 __all__ = [
     # Core interfaces
     "IExtension",
-    "IExtensionManager", 
+    "IExtensionManager",
     "ExtensionStatus",
     "ExtensionHealth",
     "ExtensionMetadata",
     "MCPTool",
-    
+
     # Main components
     "ExtensionManager",
     "ExtensionLoader",
     "ExtensionRegistry",
     "ExtensionValidator",
-    
+
     # Exceptions
     "ExtensionError",
     "ExtensionLoadError",
-    "ExtensionInitializationError", 
+    "ExtensionInitializationError",
     "ExtensionConfigurationError",
     "ExtensionDependencyError",
     "ExtensionToolError",

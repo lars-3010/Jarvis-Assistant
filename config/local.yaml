@@ -1,0 +1,5 @@
+# Override base.yaml as needed. Example:
+# property_extraction:
+#   frontmatter_tag_keys: ["tags", "topics"]
+#   inline_tag_prefixes: ["#", "#tag/"]
+

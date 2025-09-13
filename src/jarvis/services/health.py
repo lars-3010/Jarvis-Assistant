@@ -1,14 +1,13 @@
 
 import logging
-from typing import Dict, Any
+from typing import Any
 
 from neo4j import GraphDatabase
 from neo4j.exceptions import ServiceUnavailable
 
+from jarvis.core.interfaces import IHealthChecker
 from jarvis.utils.config import JarvisSettings
 from jarvis.utils.errors import ServiceError
-from jarvis.services.vector.database import VectorDatabase
-from jarvis.core.interfaces import IHealthChecker
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +18,7 @@ class HealthChecker(IHealthChecker):
     def __init__(self, settings: JarvisSettings):
         self.settings = settings
 
-    def check_neo4j_health(self) -> Dict[str, Any]:
+    def check_neo4j_health(self) -> dict[str, Any]:
         """
         Checks the health of the Neo4j database.
         """
@@ -41,7 +40,7 @@ class HealthChecker(IHealthChecker):
 
         return status
 
-    def check_vector_db_health(self) -> Dict[str, Any]:
+    def check_vector_db_health(self) -> dict[str, Any]:
         """
         Checks the health of the DuckDB vector database.
         """
@@ -60,7 +59,7 @@ class HealthChecker(IHealthChecker):
             status["details"] = f"An unexpected error occurred: {e}"
         return status
 
-    def check_vault_health(self) -> Dict[str, Any]:
+    def check_vault_health(self) -> dict[str, Any]:
         """
         Checks the health of the Obsidian vault.
         """
@@ -78,7 +77,7 @@ class HealthChecker(IHealthChecker):
             status["details"] = f"Vault path does not exist or is not a directory: {vault_path}"
         return status
 
-    def get_overall_health(self) -> Dict[str, Any]:
+    def get_overall_health(self) -> dict[str, Any]:
         """
         Gets the health status of all key services.
         """
@@ -101,19 +100,19 @@ class HealthChecker(IHealthChecker):
                 vault_health
             ]
         }
-    
+
     # Interface methods required by IHealthChecker
     def check_vector_database(self) -> bool:
         """Check vector database health."""
         health = self.check_vector_db_health()
         return health["status"] == "HEALTHY"
-    
+
     def check_graph_database(self) -> bool:
         """Check graph database health."""
         health = self.check_neo4j_health()
         return health["status"] == "HEALTHY"
-    
-    def check_vault_access(self) -> Dict[str, bool]:
+
+    def check_vault_access(self) -> dict[str, bool]:
         """Check vault accessibility."""
         health = self.check_vault_health()
         return {"default": health["status"] == "HEALTHY"}
@@ -134,7 +133,7 @@ def check_neo4j_health(uri: str, auth: tuple) -> bool:
     username, password = auth
     logger.info(f"Checking Neo4j health at URI: {uri}")
     logger.info(f"Neo4j credentials - User: '{username}', Password: {'*' * len(password)} (length: {len(password)})")
-    
+
     try:
         logger.debug(f"Creating Neo4j driver with URI: {uri}")
         with GraphDatabase.driver(uri, auth=auth) as driver:

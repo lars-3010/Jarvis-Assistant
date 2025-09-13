@@ -13,7 +13,7 @@ except ImportError:
     __all__ = []
 
 try:
-    from .pinecone_adapter import PineconeVectorDatabase  
+    from .pinecone_adapter import PineconeVectorDatabase
     __all__.append("PineconeVectorDatabase")
 except ImportError:
     pass

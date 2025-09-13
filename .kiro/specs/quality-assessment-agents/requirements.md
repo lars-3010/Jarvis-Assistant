@@ -1,5 +1,9 @@
 # Requirements Document
 
+Alignment Note (2025-09-11):
+- This feature aligns with the existing Vault Analytics Engine; quality scoring and distribution are delivered via analytics services and MCP tools rather than a separate agent runtime.
+- Remaining work emphasizes real-time/incremental assessment, configuration surfaces, trend tracking, and result caching/persistence.
+
 ## Introduction
 
 This feature introduces AI-powered Quality Assessment Agents that automatically analyze Obsidian vault content to provide intelligent quality scoring, improvement recommendations, and content optimization suggestions. The agents will integrate with the existing Jarvis Assistant architecture to provide actionable insights about knowledge base quality and organization.

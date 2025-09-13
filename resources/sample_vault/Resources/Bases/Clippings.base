@@ -1,0 +1,79 @@
+filters:
+  and:
+    - file.inFolder("Resources/Clippings")
+formulas:
+  read_status: 'read == true ? "✅" : "📖"'
+  refined_status: 'refined == true ? "✅" : "⭕"'
+  integrated_status: 'integrated == true ? "✅" : "📝"'
+  processing_stage: 'integrated ? "Done" : refined ? "Ready" : read ? "Refine" : "Read"'
+properties:
+  file.name:
+    displayName: Title
+  formula.read_status:
+    displayName: Read
+  formula.refined_status:
+    displayName: Refined
+  formula.integrated_status:
+    displayName: Integrated
+  formula.processing_stage:
+    displayName: Stage
+  source:
+    displayName: Source
+views:
+  - type: table
+    name: To Read
+    filters:
+      and:
+        - read == false
+    order:
+      - file.ctime desc
+    columns:
+      - file.name
+      - source
+      - file.ctime
+  - type: table
+    name: To Process
+    filters:
+      and:
+        - integrated == false
+    order:
+      - formula.processing_stage asc
+      - file.ctime asc
+    group_by: formula.processing_stage
+    columns:
+      - file.name
+      - formula.read_status
+      - formula.refined_status
+      - source
+  - type: table
+    name: All Clippings
+    order:
+      - file.ctime desc
+    columns:
+      - file.name
+      - formula.processing_stage
+      - source
+      - file.ctime
+  - type: table
+    name: Completed
+    filters:
+      and:
+        - integrated == true
+    order:
+      - file.mtime desc
+    columns:
+      - file.name
+      - source
+      - file.mtime
+  - type: table
+    name: All
+    order:
+      - file.name
+      - description
+      - read
+      - integrated
+      - refined
+      - source
+    columnSize:
+      file.name: 186
+      note.description: 319

@@ -47,6 +47,8 @@ Jarvis Assistant bridges this gap by providing:
 - Multiple database adapters (DuckDB, Chroma, Pinecone support)
 - Extensions system for AI workflows and integrations
 - Analytics services for content assessment and domain analysis
+  
+Note on modules: Heavy/optional features (analytics, GraphRAG) live under `src/jarvis/features/*` and are re-exported via import shims at `src/jarvis/services/*` to keep import paths stable.
 
 ## Technology Stack
 
@@ -62,6 +64,6 @@ Jarvis Assistant bridges this gap by providing:
 
 For getting started, see: [Quick Start Guide](../03-getting-started/quick-start.md)
 
-For technical details, see: [System Design](../02-system-design/data-flow.md)
+For technical details, see: [Architecture](../architecture/arc42.md) and [Data Flow](../02-architecture/data-flow.md)
 
 For usage examples, see: [Common Workflows](../04-usage/common-workflows.md)

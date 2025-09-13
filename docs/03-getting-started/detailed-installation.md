@@ -171,9 +171,9 @@ export NEO4J_URI=bolt://localhost:7687
 export NEO4J_USERNAME=neo4j
 export NEO4J_PASSWORD=password
 
-# Or create .env file
-cp resources/config/.env.example .env
-# Edit .env with your Neo4j credentials
+# Or create config/.env file
+cp config/.env.example config/.env
+# Edit config/.env with your Neo4j credentials
 ```
 
 ## Vault Setup
@@ -336,10 +336,10 @@ uv run jarvis mcp --vault /path/to/your/vault --verbose
 #### Step 1: Create Environment File
 ```bash
 # Copy example configuration
-cp resources/config/.env.example .env
+cp config/.env.example config/.env
 
 # Edit configuration
-nano .env
+nano config/.env
 ```
 
 #### Step 2: Configuration Options

@@ -6,13 +6,13 @@ registration, and execution of tools in a modular fashion.
 """
 
 from .base import MCPToolPlugin, PluginMetadata
-from .registry import PluginRegistry
 from .discovery import PluginDiscovery
+from .registry import PluginRegistry
 from .tools import *
 
 __all__ = [
     "MCPToolPlugin",
-    "PluginMetadata", 
-    "PluginRegistry",
     "PluginDiscovery",
+    "PluginMetadata",
+    "PluginRegistry",
 ]

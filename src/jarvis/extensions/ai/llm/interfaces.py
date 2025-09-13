@@ -6,9 +6,11 @@ configurable model routing and task-specific optimization.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional, AsyncGenerator
+from collections.abc import AsyncGenerator
 from enum import Enum
-from pydantic import BaseModel, Field
+from typing import Any
+
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class TaskType(str, Enum):
@@ -36,16 +38,15 @@ class ModelInfo(BaseModel):
     name: str
     provider: str
     size: str  # e.g., "7b", "13b", "70b"
-    quantization: Optional[str] = None  # e.g., "q4", "q8"
+    quantization: str | None = None  # e.g., "q4", "q8"
     context_window: int = 4096
     max_tokens: int = 2048
     estimated_memory_gb: float = 0.0
-    specialized_for: List[TaskType] = []
-    download_size_mb: Optional[int] = None
+    specialized_for: list[TaskType] = []
+    download_size_mb: int | None = None
     is_available: bool = False
-    
-    class Config:
-        use_enum_values = True
+
+    model_config = ConfigDict(use_enum_values=True)
 
 
 class LLMResponse(BaseModel):
@@ -54,34 +55,33 @@ class LLMResponse(BaseModel):
     model_used: str
     task_type: TaskType
     status: LLMResponseStatus = LLMResponseStatus.SUCCESS
-    error_message: Optional[str] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    
+    error_message: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
     # Performance metrics
-    input_tokens: Optional[int] = None
-    output_tokens: Optional[int] = None
-    response_time_ms: Optional[float] = None
-    
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    response_time_ms: float | None = None
+
     # Quality metrics
-    confidence_score: Optional[float] = None
-    temperature_used: Optional[float] = None
-    
-    class Config:
-        use_enum_values = True
+    confidence_score: float | None = None
+    temperature_used: float | None = None
+
+    model_config = ConfigDict(use_enum_values=True)
 
 
 class AnalysisResult(BaseModel):
     """Result of content analysis."""
     answer: str
-    key_points: List[str] = []
-    sentiment: Optional[str] = None
-    topics: List[str] = []
-    confidence: Optional[float] = None
+    key_points: list[str] = []
+    sentiment: str | None = None
+    topics: list[str] = []
+    confidence: float | None = None
     sources_analyzed: int = 0
-    
+
     # Additional analysis metadata
     analysis_method: str = "llm"
-    processing_time_ms: Optional[float] = None
+    processing_time_ms: float | None = None
 
 
 class StreamingResponse(BaseModel):
@@ -89,35 +89,35 @@ class StreamingResponse(BaseModel):
     chunk: str
     is_complete: bool = False
     chunk_index: int = 0
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class LLMConfig(BaseModel):
     """Configuration for LLM requests."""
-    model: Optional[str] = None
+    model: str | None = None
     temperature: float = 0.7
     max_tokens: int = 1000
     top_p: float = 0.9
     frequency_penalty: float = 0.0
     presence_penalty: float = 0.0
-    stop_sequences: List[str] = []
+    stop_sequences: list[str] = []
     stream: bool = False
     timeout_seconds: int = 30
-    
+
     # Task-specific overrides
-    task_type: Optional[TaskType] = None
-    context_window_override: Optional[int] = None
+    task_type: TaskType | None = None
+    context_window_override: int | None = None
 
 
 class ILLMService(ABC):
     """Abstract interface for LLM services with configurable model routing."""
-    
+
     @abstractmethod
     async def generate(
-        self, 
-        prompt: str, 
-        context: Optional[str] = None,
-        config: Optional[LLMConfig] = None
+        self,
+        prompt: str,
+        context: str | None = None,
+        config: LLMConfig | None = None
     ) -> LLMResponse:
         """Generate text using the LLM.
         
@@ -130,13 +130,13 @@ class ILLMService(ABC):
             LLMResponse with generated text and metadata
         """
         pass
-    
+
     @abstractmethod
     async def generate_stream(
-        self, 
-        prompt: str, 
-        context: Optional[str] = None,
-        config: Optional[LLMConfig] = None
+        self,
+        prompt: str,
+        context: str | None = None,
+        config: LLMConfig | None = None
     ) -> AsyncGenerator[StreamingResponse, None]:
         """Generate text using streaming.
         
@@ -149,13 +149,13 @@ class ILLMService(ABC):
             StreamingResponse chunks
         """
         pass
-    
+
     @abstractmethod
     async def summarize(
-        self, 
-        text: str, 
+        self,
+        text: str,
         style: str = "bullet",
-        max_length: Optional[int] = None
+        max_length: int | None = None
     ) -> LLMResponse:
         """Summarize text content.
         
@@ -168,11 +168,11 @@ class ILLMService(ABC):
             LLMResponse with summary
         """
         pass
-    
+
     @abstractmethod
     async def analyze(
-        self, 
-        content: List[str], 
+        self,
+        content: list[str],
         question: str,
         analysis_type: str = "general"
     ) -> AnalysisResult:
@@ -187,12 +187,12 @@ class ILLMService(ABC):
             AnalysisResult with analysis
         """
         pass
-    
+
     @abstractmethod
     async def quick_answer(
-        self, 
-        question: str, 
-        context: Optional[str] = None
+        self,
+        question: str,
+        context: str | None = None
     ) -> LLMResponse:
         """Get quick answer to a question.
         
@@ -204,13 +204,13 @@ class ILLMService(ABC):
             LLMResponse with quick answer
         """
         pass
-    
+
     @abstractmethod
     async def extract_information(
-        self, 
-        text: str, 
-        extraction_schema: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self,
+        text: str,
+        extraction_schema: dict[str, Any]
+    ) -> dict[str, Any]:
         """Extract structured information from text.
         
         Args:
@@ -221,13 +221,13 @@ class ILLMService(ABC):
             Extracted information dictionary
         """
         pass
-    
+
     @abstractmethod
     async def classify_text(
-        self, 
-        text: str, 
-        categories: List[str]
-    ) -> Dict[str, float]:
+        self,
+        text: str,
+        categories: list[str]
+    ) -> dict[str, float]:
         """Classify text into categories.
         
         Args:
@@ -238,7 +238,7 @@ class ILLMService(ABC):
             Dictionary mapping categories to confidence scores
         """
         pass
-    
+
     @abstractmethod
     def get_model_for_task(self, task_type: TaskType) -> str:
         """Get the best model for a specific task type.
@@ -250,9 +250,9 @@ class ILLMService(ABC):
             Model name
         """
         pass
-    
+
     @abstractmethod
-    def get_model_info(self, model_name: str) -> Optional[ModelInfo]:
+    def get_model_info(self, model_name: str) -> ModelInfo | None:
         """Get information about a model.
         
         Args:
@@ -262,16 +262,16 @@ class ILLMService(ABC):
             ModelInfo or None if not found
         """
         pass
-    
+
     @abstractmethod
-    def list_available_models(self) -> List[ModelInfo]:
+    def list_available_models(self) -> list[ModelInfo]:
         """List all available models.
         
         Returns:
             List of ModelInfo objects
         """
         pass
-    
+
     @abstractmethod
     async def download_model(self, model_name: str) -> bool:
         """Download a model if not available locally.
@@ -283,18 +283,18 @@ class ILLMService(ABC):
             True if download successful
         """
         pass
-    
+
     @abstractmethod
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """Check health of LLM service.
         
         Returns:
             Health status dictionary
         """
         pass
-    
+
     @abstractmethod
-    async def get_resource_usage(self) -> Dict[str, Any]:
+    async def get_resource_usage(self) -> dict[str, Any]:
         """Get current resource usage statistics.
         
         Returns:
@@ -305,11 +305,11 @@ class ILLMService(ABC):
 
 class IModelRouter(ABC):
     """Abstract interface for model routing logic."""
-    
+
     @abstractmethod
     def select_model(
-        self, 
-        task_type: TaskType, 
+        self,
+        task_type: TaskType,
         context_length: int = 0,
         quality_preference: str = "balanced"
     ) -> str:
@@ -324,9 +324,9 @@ class IModelRouter(ABC):
             Model name
         """
         pass
-    
+
     @abstractmethod
-    def get_fallback_model(self, failed_model: str, task_type: TaskType) -> Optional[str]:
+    def get_fallback_model(self, failed_model: str, task_type: TaskType) -> str | None:
         """Get a fallback model if the primary fails.
         
         Args:
@@ -337,13 +337,13 @@ class IModelRouter(ABC):
             Fallback model name or None
         """
         pass
-    
+
     @abstractmethod
     def update_model_performance(
-        self, 
-        model_name: str, 
-        task_type: TaskType, 
-        response_time: float, 
+        self,
+        model_name: str,
+        task_type: TaskType,
+        response_time: float,
         success: bool
     ) -> None:
         """Update model performance metrics.

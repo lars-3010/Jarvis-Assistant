@@ -6,448 +6,223 @@ with support for environment variables and .env files.
 """
 
 from pathlib import Path
-from typing import Optional, Dict, Any, List
-from pydantic import Field, BaseModel
-from pydantic_settings import BaseSettings
+from typing import Any
 
-
-from jarvis.utils.errors import ConfigurationError
+from pydantic import BaseModel, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class ValidationResult(BaseModel):
     valid: bool = True
-    errors: List[str] = []
-    warnings: List[str] = []
+    errors: list[str] = []
+    warnings: list[str] = []
 
 
 class JarvisSettings(BaseSettings):
     """Jarvis Assistant configuration settings."""
-    
+
     # Application
     app_name: str = "jarvis-assistant"
     app_version: str = "0.2.0"
-    debug: bool = Field(default=False, env="JARVIS_DEBUG")
-    
+    debug: bool = Field(default=False)
+
     def __init__(self, **kwargs):
-        """Initialize settings with extensive logging for debugging."""
-        import logging
-        logger = logging.getLogger(__name__)
-        
-        # Log environment variables for debugging
-        import os
-        neo4j_env_password = os.environ.get("JARVIS_NEO4J_PASSWORD")
-        neo4j_env_user = os.environ.get("JARVIS_NEO4J_USER")
-        neo4j_env_uri = os.environ.get("JARVIS_NEO4J_URI")
-        
-        logger.info(f"Loading JarvisSettings...")
-        logger.info(f"Environment variables found - JARVIS_NEO4J_PASSWORD: {'SET' if neo4j_env_password else 'NOT SET'}")
-        logger.info(f"Environment variables found - JARVIS_NEO4J_USER: {'SET' if neo4j_env_user else 'NOT SET'}")
-        logger.info(f"Environment variables found - JARVIS_NEO4J_URI: {'SET' if neo4j_env_uri else 'NOT SET'}")
-        
+        """Initialize settings with quiet defaults; debug logs only when enabled."""
         super().__init__(**kwargs)
-        
-        # Log final values
-        logger.info(f"Final configuration - neo4j_user: '{self.neo4j_user}'")
-        logger.info(f"Final configuration - neo4j_password: {'*' * len(self.neo4j_password)} (length: {len(self.neo4j_password)})")
-        logger.info(f"Final configuration - neo4j_uri: '{self.neo4j_uri}'")
+        import logging, os
+        logger = logging.getLogger(__name__)
+        dbg = bool(getattr(self, "debug", False))
+        if dbg:
+            neo4j_env_password = os.environ.get("JARVIS_NEO4J_PASSWORD")
+            neo4j_env_user = os.environ.get("JARVIS_NEO4J_USER")
+            neo4j_env_uri = os.environ.get("JARVIS_NEO4J_URI")
+            logger.debug("JarvisSettings loaded (debug on)")
+            logger.debug(
+                "Env presence — PASSWORD:%s USER:%s URI:%s",
+                "SET" if neo4j_env_password else "NOT SET",
+                "SET" if neo4j_env_user else "NOT SET",
+                "SET" if neo4j_env_uri else "NOT SET",
+            )
+            logger.debug("neo4j_user=%s neo4j_uri=%s", self.neo4j_user, self.neo4j_uri)
 
     # API settings
     api_title: str = "Jarvis Assistant"
     api_description: str = "AI assistant for Obsidian with Neo4j integration"
     api_version: str = "0.1.0"
-    backend_port: int = Field(default=8000, env="JARVIS_BACKEND_PORT")
-    cors_origins: List[str] = Field(default=["*"], env="JARVIS_CORS_ORIGINS")
+    backend_port: int = Field(default=8000)
+    cors_origins: list[str] = Field(default=["*"])
 
     # LLM settings
-    google_api_key: Optional[str] = Field(default=None, env="GOOGLE_API_KEY")
-    gemini_model_id: str = Field(default="gemini-1.5-flash-latest", env="GEMINI_MODEL_ID")
+    # External (non-JARVIS_) envs supported via validation_alias
+    from pydantic import AliasChoices as _AliasChoices  # type: ignore
+    google_api_key: str | None = Field(default=None, validation_alias=_AliasChoices("GOOGLE_API_KEY"))
+    gemini_model_id: str = Field(default="gemini-1.5-flash-latest", validation_alias=_AliasChoices("GEMINI_MODEL_ID"))
 
     # Vault exclusion settings
-    excluded_folders: List[str] = Field(
+    excluded_folders: list[str] = Field(
         default=["Journaling", "Atlas/People", "Atlas/work People"],
-        env="JARVIS_EXCLUDED_FOLDERS",
         description="Folders to exclude from indexing and querying"
     )
-    
+
     # Vault settings
-    vault_path: str = Field(
-        default="",
-        env="JARVIS_VAULT_PATH",
-        description="Path to primary Obsidian vault"
-    )
-    vault_watch: bool = Field(
-        default=True,
-        env="JARVIS_VAULT_WATCH",
-        description="Enable file system watching"
-    )
-    
+    vault_path: str = Field(default="", description="Path to primary Obsidian vault")
+    vault_watch: bool = Field(default=True, description="Enable file system watching")
+
     # Vector database settings
-    vector_db_backend: str = Field(
-        default="duckdb",
-        env="JARVIS_VECTOR_DB_BACKEND",
-        description="Vector database backend: duckdb, chroma, pinecone"
-    )
-    vector_db_path: str = Field(
-        default="~/.jarvis/jarvis-vector.duckdb",
-        env="JARVIS_VECTOR_DB_PATH",
-        description="Path to DuckDB vector database file"
-    )
-    vector_db_read_only: bool = Field(default=False, env="JARVIS_VECTOR_DB_READ_ONLY")
-    
+    vector_db_backend: str = Field(default="duckdb", description="Vector database backend: duckdb, chroma, pinecone")
+    vector_db_path: str = Field(default="~/.jarvis/jarvis-vector.duckdb", description="Path to DuckDB vector database file")
+    vector_db_read_only: bool = Field(default=False)
+
     # ChromaDB settings
-    chroma_collection_name: str = Field(default="jarvis-embeddings", env="JARVIS_CHROMA_COLLECTION_NAME")
-    chroma_persist_directory: Optional[str] = Field(default=None, env="JARVIS_CHROMA_PERSIST_DIRECTORY")
-    chroma_host: Optional[str] = Field(default=None, env="JARVIS_CHROMA_HOST")
-    chroma_port: Optional[int] = Field(default=None, env="JARVIS_CHROMA_PORT")
-    
+    chroma_collection_name: str = Field(default="jarvis-embeddings")
+    chroma_persist_directory: str | None = Field(default=None)
+    chroma_host: str | None = Field(default=None)
+    chroma_port: int | None = Field(default=None)
+
     # Pinecone settings
-    pinecone_api_key: Optional[str] = Field(default=None, env="JARVIS_PINECONE_API_KEY")
-    pinecone_environment: Optional[str] = Field(default=None, env="JARVIS_PINECONE_ENVIRONMENT")
-    pinecone_index_name: str = Field(default="jarvis-embeddings", env="JARVIS_PINECONE_INDEX_NAME")
-    
+    pinecone_api_key: str | None = Field(default=None)
+    pinecone_environment: str | None = Field(default=None)
+    pinecone_index_name: str = Field(default="jarvis-embeddings")
+
     # Graph database settings
-    graph_db_backend: str = Field(
-        default="neo4j",
-        env="JARVIS_GRAPH_DB_BACKEND", 
-        description="Graph database backend: neo4j, arangodb"
-    )
-    graph_enabled: bool = Field(
-        default=True,
-        env="JARVIS_GRAPH_ENABLED",
-        description="Enable graph database integration"
-    )
-    
+    graph_db_backend: str = Field(default="neo4j", description="Graph database backend: neo4j, arangodb")
+    graph_enabled: bool = Field(default=True, description="Enable graph database integration")
+
     # Neo4j settings
-    neo4j_uri: str = Field(
-        default="bolt://localhost:7687",
-        env="JARVIS_NEO4J_URI",
-        description="Neo4j database URI"
-    )
-    neo4j_user: str = Field(
-        default="neo4j",
-        env="JARVIS_NEO4J_USER",
-        description="Neo4j username"
-    )
-    neo4j_password: str = Field(
-        default="password",
-        env="JARVIS_NEO4J_PASSWORD",
-        description="Neo4j password"
-    )
-    
+    neo4j_uri: str = Field(default="bolt://localhost:7687", description="Neo4j database URI")
+    neo4j_user: str = Field(default="neo4j", description="Neo4j username")
+    neo4j_password: str = Field(default="password", description="Neo4j password")
+
     # ArangoDB settings
-    arango_hosts: str = Field(default="http://localhost:8529", env="JARVIS_ARANGO_HOSTS")
-    arango_database: str = Field(default="jarvis", env="JARVIS_ARANGO_DATABASE")
-    arango_username: str = Field(default="root", env="JARVIS_ARANGO_USERNAME")
-    arango_password: Optional[str] = Field(default=None, env="JARVIS_ARANGO_PASSWORD")
-    
+    arango_hosts: str = Field(default="http://localhost:8529")
+    arango_database: str = Field(default="jarvis")
+    arango_username: str = Field(default="root")
+    arango_password: str | None = Field(default=None)
+
     # Embedding settings
-    embedding_model_name: str = Field(
-        default="paraphrase-MiniLM-L6-v2",
-        env="JARVIS_EMBEDDING_MODEL_NAME",
-        description="Sentence transformer model name"
-    )
-    embedding_device: str = Field(
-        default="mps",  # Apple Silicon optimized
-        env="JARVIS_EMBEDDING_DEVICE",
-        description="PyTorch device for embeddings"
-    )
-    embedding_batch_size: int = Field(
-        default=32,
-        env="JARVIS_EMBEDDING_BATCH_SIZE",
-        description="Batch size for embedding generation"
-    )
-    
+    embedding_model_name: str = Field(default="paraphrase-MiniLM-L6-v2", description="Sentence transformer model name")
+    embedding_device: str = Field(default="mps", description="PyTorch device for embeddings")
+    embedding_batch_size: int = Field(default=32, description="Batch size for embedding generation")
+
     # MCP server settings
-    mcp_server_name: str = Field(default="jarvis-assistant", env="JARVIS_MCP_SERVER_NAME")
-    mcp_server_version: str = Field(default="0.2.0", env="JARVIS_MCP_SERVER_VERSION")
-    mcp_cache_size: int = Field(default=100, env="JARVIS_MCP_CACHE_SIZE", description="Maximum number of cached MCP tool call results.")
-    mcp_cache_ttl: int = Field(default=300, env="JARVIS_MCP_CACHE_TTL", description="Time to live for cached MCP entries in seconds.")
-    
+    mcp_server_name: str = Field(default="jarvis-assistant")
+    mcp_server_version: str = Field(default="0.2.0")
+    mcp_cache_size: int = Field(default=100, description="Maximum number of cached MCP tool call results.")
+    mcp_cache_ttl: int = Field(default=300, description="Time to live for cached MCP entries in seconds.")
+
     # Metrics and monitoring settings
-    metrics_enabled: bool = Field(
-        default=True,
-        env="JARVIS_METRICS_ENABLED", 
-        description="Enable performance metrics collection"
-    )
-    metrics_sampling_rate: float = Field(
-        default=1.0,
-        env="JARVIS_METRICS_SAMPLING_RATE",
-        description="Sampling rate for metrics collection (0.0-1.0)"
-    )
-    metrics_retention_minutes: int = Field(
-        default=60,
-        env="JARVIS_METRICS_RETENTION_MINUTES",
-        description="How long to retain metrics in memory (minutes)"
-    )
-    metrics_detailed_logging: bool = Field(
-        default=False,
-        env="JARVIS_METRICS_DETAILED_LOGGING",
-        description="Enable detailed metrics logging for debugging"
-    )
-    
+    metrics_enabled: bool = Field(default=True, description="Enable performance metrics collection")
+    metrics_sampling_rate: float = Field(default=1.0, description="Sampling rate for metrics collection (0.0-1.0)")
+    metrics_retention_minutes: int = Field(default=60, description="How long to retain metrics in memory (minutes)")
+    metrics_detailed_logging: bool = Field(default=False, description="Enable detailed metrics logging for debugging")
+
     # Indexing settings
-    index_batch_size: int = Field(
-        default=32,
-        env="JARVIS_INDEX_BATCH_SIZE",
-        description="Batch size for document indexing"
-    )
-    index_enqueue_all: bool = Field(
-        default=False,
-        env="JARVIS_INDEX_ENQUEUE_ALL",
-        description="Force reindex all documents on startup"
-    )
-    
-    # Dataset generation settings
-    dataset_output_dir: str = Field(
-        default="~/Developer/Projects/Data-Analysis/datasets",
-        env="JARVIS_DATASET_OUTPUT_DIR",
-        description="Default output directory for generated datasets"
-    )
-    dataset_areas_only: bool = Field(
-        default=True,
-        env="JARVIS_DATASET_AREAS_ONLY",
-        description="Process only Areas/ folder content for dataset generation"
-    )
-    dataset_areas_folder_name: str = Field(
-        default="Areas",
-        env="JARVIS_DATASET_AREAS_FOLDER_NAME",
-        description="Name of the folder to process (default: Areas)"
-    )
-    
+    index_batch_size: int = Field(default=32, description="Batch size for document indexing")
+    index_enqueue_all: bool = Field(default=False, description="Force reindex all documents on startup")
+
+    # Dataset generation settings (removed)
+
     # Search settings
-    search_default_limit: int = Field(
-        default=10,
-        env="JARVIS_SEARCH_DEFAULT_LIMIT",
-        description="Default limit for search results"
-    )
-    search_similarity_threshold: float = Field(
-        default=-10.0,
-        env="JARVIS_SEARCH_SIMILARITY_THRESHOLD",
-        description="Minimum similarity threshold for search results (negative values for cosine distance)"
-    )
-    
+    search_default_limit: int = Field(default=10, description="Default limit for search results")
+    search_similarity_threshold: float = Field(default=-10.0, description="Minimum similarity threshold for search results (negative values for cosine distance)")
+
     # Logging settings
-    log_level: str = Field(
-        default="INFO",
-        env="JARVIS_LOG_LEVEL",
-        description="Logging level"
-    )
-    log_format: str = Field(
-        default="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        env="JARVIS_LOG_FORMAT",
-        description="Logging format"
-    )
-    log_file: str = Field(
-        default="~/.jarvis/mcp_server.log",
-        env="JARVIS_LOG_FILE",
-        description="Log file path"
-    )
-    
+    log_level: str = Field(default="INFO", description="Logging level")
+    log_format: str = Field(default="%(asctime)s - %(name)s - %(levelname)s - %(message)s", description="Logging format")
+    log_file: str = Field(default="~/.jarvis/mcp_server.log", description="Log file path")
+
     # Database settings
-    database_path: str = Field(
-        default="~/.jarvis/jarvis.duckdb",
-        env="JARVIS_DATABASE_PATH",
-        description="Main database file path"
-    )
-    
+    database_path: str = Field(default="~/.jarvis/jarvis.duckdb", description="Main database file path")
+
     # Service container settings
-    use_dependency_injection: bool = Field(
-        default=False,
-        env="JARVIS_USE_DEPENDENCY_INJECTION",
-        description="Enable dependency injection container (experimental)"
-    )
-    service_logging_enabled: bool = Field(
-        default=True,
-        env="JARVIS_SERVICE_LOGGING_ENABLED",
-        description="Enable detailed service logging"
-    )
-    service_health_check_interval: int = Field(
-        default=60,
-        env="JARVIS_SERVICE_HEALTH_CHECK_INTERVAL",
-        description="Service health check interval in seconds"
-    )
-    
+    use_dependency_injection: bool = Field(default=True, description="Enable dependency injection container")
+    service_logging_enabled: bool = Field(default=True, description="Enable detailed service logging")
+    service_health_check_interval: int = Field(default=60, description="Service health check interval in seconds")
+
     # Extension system settings
-    extensions_enabled: bool = Field(
-        default=False,
-        env="JARVIS_EXTENSIONS_ENABLED",
-        description="Enable extension system (Phase 0)"
-    )
-    extensions_auto_load: List[str] = Field(
-        default=[],
-        env="JARVIS_EXTENSIONS_AUTO_LOAD",
-        description="List of extensions to automatically load on startup"
-    )
-    extensions_directory: str = Field(
-        default="src/jarvis/extensions",
-        env="JARVIS_EXTENSIONS_DIRECTORY",
-        description="Directory containing extensions"
-    )
-    extensions_config: Dict[str, Any] = Field(
+    extensions_enabled: bool = Field(default=False, description="Enable extension system (Phase 0)")
+    extensions_auto_load: list[str] = Field(default=[], description="List of extensions to automatically load on startup")
+    extensions_directory: str = Field(default="src/jarvis/extensions", description="Directory containing extensions")
+    extensions_config: dict[str, Any] = Field(
         default={},
         description="Extension-specific configuration"
     )
-    
+
     # AI Extension settings (Phase 1+)
-    ai_extension_enabled: bool = Field(
-        default=False,
-        env="JARVIS_AI_EXTENSION_ENABLED",
-        description="Enable AI extension with LLM capabilities"
-    )
-    ai_llm_provider: str = Field(
-        default="ollama",
-        env="JARVIS_AI_LLM_PROVIDER",
-        description="LLM provider: ollama, huggingface"
-    )
-    ai_llm_models: List[str] = Field(
-        default=["llama2:7b"],
-        env="JARVIS_AI_LLM_MODELS",
-        description="Available LLM models"
-    )
-    ai_max_memory_gb: int = Field(
-        default=8,
-        env="JARVIS_AI_MAX_MEMORY_GB",
-        description="Maximum memory usage for AI operations (GB)"
-    )
-    ai_timeout_seconds: int = Field(
-        default=30,
-        env="JARVIS_AI_TIMEOUT_SECONDS",
-        description="Timeout for AI operations (seconds)"
-    )
-    ai_graphrag_enabled: bool = Field(
-        default=False,
-        env="JARVIS_AI_GRAPHRAG_ENABLED",
-        description="Enable GraphRAG capabilities"
-    )
-    ai_workflows_enabled: bool = Field(
-        default=False,
-        env="JARVIS_AI_WORKFLOWS_ENABLED",
-        description="Enable workflow orchestration"
-    )
-    
+    ai_extension_enabled: bool = Field(default=False, description="Enable AI extension with LLM capabilities")
+    ai_llm_provider: str = Field(default="ollama", description="LLM provider: ollama, huggingface")
+    ai_llm_models: list[str] = Field(default=["llama2:7b"], description="Available LLM models")
+    ai_max_memory_gb: int = Field(default=8, description="Maximum memory usage for AI operations (GB)")
+    ai_timeout_seconds: int = Field(default=30, description="Timeout for AI operations (seconds)")
+    ai_graphrag_enabled: bool = Field(default=False, description="Enable GraphRAG capabilities")
+    ai_workflows_enabled: bool = Field(default=False, description="Enable workflow orchestration")
+
     # Analytics settings
-    analytics_enabled: bool = Field(
-        default=True,
-        env="JARVIS_ANALYTICS_ENABLED",
-        description="Enable vault analytics engine"
+    analytics_enabled: bool = Field(default=True, description="Enable vault analytics engine")
+    analytics_cache_enabled: bool = Field(default=True, description="Enable analytics caching")
+    analytics_cache_max_size_mb: int = Field(default=100, description="Maximum analytics cache size in MB")
+    analytics_cache_ttl_minutes: int = Field(default=60, description="Analytics cache time-to-live in minutes")
+    analytics_quality_scoring_algorithm: str = Field(default="comprehensive", description="Quality scoring algorithm: basic, comprehensive")
+    analytics_quality_connection_weight: float = Field(default=0.3, description="Weight for connection metrics in quality scoring (0.0-1.0)")
+    analytics_quality_freshness_weight: float = Field(default=0.2, description="Weight for freshness metrics in quality scoring (0.0-1.0)")
+    analytics_domains_clustering_threshold: float = Field(default=0.7, description="Similarity threshold for domain clustering (0.0-1.0)")
+    analytics_domains_min_cluster_size: int = Field(default=3, description="Minimum notes required to form a domain cluster")
+    analytics_domains_max_domains: int = Field(default=20, description="Maximum number of domains to identify")
+    analytics_max_processing_time_seconds: int = Field(default=15, description="Maximum processing time for analytics operations")
+    analytics_enable_parallel_processing: bool = Field(default=True, description="Enable parallel processing for analytics")
+    analytics_sample_large_vaults: bool = Field(default=True, description="Use sampling for large vaults to improve performance")
+    analytics_sample_threshold: int = Field(default=5000, description="Note count threshold for enabling sampling")
+
+    # Pydantic v2 settings configuration
+    model_config = SettingsConfigDict(
+        env_file="config/.env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        env_prefix="JARVIS_",
+        extra="ignore",
     )
-    analytics_cache_enabled: bool = Field(
-        default=True,
-        env="JARVIS_ANALYTICS_CACHE_ENABLED",
-        description="Enable analytics caching"
-    )
-    analytics_cache_max_size_mb: int = Field(
-        default=100,
-        env="JARVIS_ANALYTICS_CACHE_MAX_SIZE_MB",
-        description="Maximum analytics cache size in MB"
-    )
-    analytics_cache_ttl_minutes: int = Field(
-        default=60,
-        env="JARVIS_ANALYTICS_CACHE_TTL_MINUTES",
-        description="Analytics cache time-to-live in minutes"
-    )
-    analytics_quality_scoring_algorithm: str = Field(
-        default="comprehensive",
-        env="JARVIS_ANALYTICS_QUALITY_SCORING_ALGORITHM",
-        description="Quality scoring algorithm: basic, comprehensive"
-    )
-    analytics_quality_connection_weight: float = Field(
-        default=0.3,
-        env="JARVIS_ANALYTICS_QUALITY_CONNECTION_WEIGHT",
-        description="Weight for connection metrics in quality scoring (0.0-1.0)"
-    )
-    analytics_quality_freshness_weight: float = Field(
-        default=0.2,
-        env="JARVIS_ANALYTICS_QUALITY_FRESHNESS_WEIGHT",
-        description="Weight for freshness metrics in quality scoring (0.0-1.0)"
-    )
-    analytics_domains_clustering_threshold: float = Field(
-        default=0.7,
-        env="JARVIS_ANALYTICS_DOMAINS_CLUSTERING_THRESHOLD",
-        description="Similarity threshold for domain clustering (0.0-1.0)"
-    )
-    analytics_domains_min_cluster_size: int = Field(
-        default=3,
-        env="JARVIS_ANALYTICS_DOMAINS_MIN_CLUSTER_SIZE",
-        description="Minimum notes required to form a domain cluster"
-    )
-    analytics_domains_max_domains: int = Field(
-        default=20,
-        env="JARVIS_ANALYTICS_DOMAINS_MAX_DOMAINS",
-        description="Maximum number of domains to identify"
-    )
-    analytics_max_processing_time_seconds: int = Field(
-        default=15,
-        env="JARVIS_ANALYTICS_MAX_PROCESSING_TIME_SECONDS",
-        description="Maximum processing time for analytics operations"
-    )
-    analytics_enable_parallel_processing: bool = Field(
-        default=True,
-        env="JARVIS_ANALYTICS_ENABLE_PARALLEL_PROCESSING",
-        description="Enable parallel processing for analytics"
-    )
-    analytics_sample_large_vaults: bool = Field(
-        default=True,
-        env="JARVIS_ANALYTICS_SAMPLE_LARGE_VAULTS",
-        description="Use sampling for large vaults to improve performance"
-    )
-    analytics_sample_threshold: int = Field(
-        default=5000,
-        env="JARVIS_ANALYTICS_SAMPLE_THRESHOLD",
-        description="Note count threshold for enabling sampling"
-    )
-    
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
-        env_prefix = "JARVIS_"
-        
-    def get_vault_path(self) -> Optional[Path]:
+
+    def get_vault_path(self) -> Path | None:
         """Get vault path as Path object."""
         if self.vault_path:
             return Path(self.vault_path).expanduser().resolve()
         return None
-    
+
     def get_vector_db_path(self) -> Path:
         """Get vector database path as Path object."""
         # Ensure the parent directory exists
         path = Path(self.vector_db_path).expanduser().resolve()
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
-    
+
     def get_extensions_directory(self) -> Path:
         """Get extensions directory path as Path object."""
         return Path(self.extensions_directory).expanduser().resolve()
-    
+
     def get_database_path(self) -> Path:
         """Get main database path as Path object."""
         path = Path(self.database_path).expanduser().resolve()
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
-    
+
     def get_log_file_path(self) -> Path:
         """Get log file path as Path object."""
         path = Path(self.log_file).expanduser().resolve()
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
-    
-    def get_dataset_output_path(self) -> Path:
-        """Get dataset output directory as Path object."""
-        path = Path(self.dataset_output_dir).expanduser().resolve()
-        path.mkdir(parents=True, exist_ok=True)
-        return path
-    
+
+    # Dataset output path not applicable; dataset tooling removed
+
     def validate_settings(self) -> ValidationResult:
         """Validate settings and return status information."""
         status = ValidationResult()
-        
+
         # Validate vault path
         vault_path = self.get_vault_path()
         if vault_path and not vault_path.exists():
             status.errors.append(f"Vault path does not exist: {vault_path}")
             status.valid = False
-        
+
         # Validate vector database directory (already handled in get_vector_db_path)
 
         # Validate Neo4j connection if enabled
@@ -462,48 +237,37 @@ class JarvisSettings(BaseSettings):
             except Exception as e:
                 status.warnings.append(f"Could not check Neo4j health: {e}")
 
-        # Validate dataset generation configuration
-        try:
-            dataset_path = self.get_dataset_output_path()
-            # Path creation is handled in get_dataset_output_path, just validate it's accessible
-        except Exception as e:
-            status.errors.append(f"Dataset output directory configuration error: {e}")
-            status.valid = False
-        
-        # Validate Areas folder name
-        if not self.dataset_areas_folder_name.strip():
-            status.errors.append("Dataset areas folder name cannot be empty")
-            status.valid = False
-        
+        # Dataset generation configuration removed
+
         # Validate analytics configuration
         if self.analytics_enabled:
             # Validate weights sum to reasonable values
-            total_weight = (self.analytics_quality_connection_weight + 
+            total_weight = (self.analytics_quality_connection_weight +
                            self.analytics_quality_freshness_weight)
             if total_weight > 1.0:
                 status.errors.append(f"Analytics quality weights sum to {total_weight:.2f}, must be ≤ 1.0")
                 status.valid = False
-            
+
             # Validate thresholds are in valid ranges
             if not (0.0 <= self.analytics_domains_clustering_threshold <= 1.0):
                 status.errors.append("Analytics clustering threshold must be between 0.0 and 1.0")
                 status.valid = False
-            
+
             if self.analytics_domains_min_cluster_size < 2:
                 status.errors.append("Analytics minimum cluster size must be at least 2")
                 status.valid = False
-                
+
             if self.analytics_max_processing_time_seconds < 1:
                 status.errors.append("Analytics max processing time must be at least 1 second")
                 status.valid = False
-                
+
             if self.analytics_cache_max_size_mb < 1:
                 status.errors.append("Analytics cache max size must be at least 1 MB")
                 status.valid = False
 
         return status
-    
-    def get_analytics_config(self) -> Dict[str, Any]:
+
+    def get_analytics_config(self) -> dict[str, Any]:
         """Get analytics configuration as a structured dictionary."""
         return {
             "enabled": self.analytics_enabled,

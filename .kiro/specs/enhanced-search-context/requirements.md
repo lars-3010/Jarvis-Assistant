@@ -1,5 +1,10 @@
 # Enhanced Search Context - Requirements Document
 
+Scope Adjustment (2025-09-11):
+- This spec is reframed as an opt-in, MVP-first approach that follows Structured Data and GraphRAG MVP.
+- Default behavior remains stateless; context is explicitly enabled and bounded (expiry, size limits).
+- Advanced learning/personalization remains feature-flagged for later phases.
+
 ## Introduction
 
 The Enhanced Search Context feature transforms search operations from simple query-response interactions into intelligent, context-aware conversations. This system maintains search context across multiple queries, learns from user patterns, and provides increasingly relevant results through contextual understanding and adaptive ranking.

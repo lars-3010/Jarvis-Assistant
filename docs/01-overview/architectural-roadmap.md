@@ -496,9 +496,9 @@ class ConfigMigration:
 
 ## 📚 Related Documentation
 
-- **[Dependency Injection Implementation](../02-system-design/dependency-injection-implementation.md)** - Phase 1 details
-- **[Docker Compatibility](../02-system-design/docker-compatibility.md)** - Container deployment guide
-- **[Component Interaction](../02-system-design/component-interaction.md)** - System architecture overview
+- **[Dependency Injection Implementation](../02-architecture/dependency-injection-implementation.md)** - Phase 1 details
+- **[Docker Compatibility](../02-architecture/docker-compatibility.md)** - Container deployment guide
+- **[Component Interaction](../02-architecture/component-interaction.md)** - System architecture overview
 - **[Key Improvements](../../ Key Modularity & Scalability Improvements.md)** - Original improvement plan
 - **[Current Status](../../Improvements.md)** - Implementation status tracking
 

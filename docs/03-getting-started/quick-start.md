@@ -4,11 +4,28 @@
 
 ## Prerequisites
 
-- **Python 3.11+** installed on your system
-- **Obsidian vault** with some notes
-- **Claude Desktop** (for MCP integration)
+- EITHER Docker (recommended for demos) OR Python 3.11+
+- Claude Desktop (for MCP integration)
 
-## 1. Install UV Package Manager
+## 1. Option A: Run with Docker (recommended)
+
+```bash
+# Build the image
+docker build -t jarvis-assistant:latest .
+
+# Or use docker compose (mounts sample vault, data, logs)
+docker compose up --build
+```
+
+Environment defaults (can override with env):
+- `JARVIS_VAULT_PATH=/vault`
+- `JARVIS_DATABASE_PATH=/data/jarvis.duckdb`
+- `JARVIS_VECTOR_DB_PATH=/data/jarvis-vector.duckdb`
+- `JARVIS_LOG_FILE=/logs/mcp_server.log`
+
+The compose file mounts the sample vault from `resources/sample_vault/` into `/vault`.
+
+## 1. Option B: Install UV Package Manager (for local run)
 
 ```bash
 # Install UV (if not already installed)
@@ -32,7 +49,7 @@ uv sync
 uv run jarvis --help
 ```
 
-## 3. Index Your Vault
+## 3. Index Your Vault (local run)
 
 ```bash
 # Replace with your actual vault path
@@ -71,7 +88,7 @@ Semantic search results for: "productivity tips"
 Found 5 results in 0.3s
 ```
 
-## 5. Start MCP Server
+## 5. Start MCP Server (local run)
 
 ```bash
 # Start the MCP server for Claude Desktop
@@ -161,17 +178,24 @@ ls "/full/path/to/your/vault"  # Verify vault exists
 - **[Developer Guide](../05-development/developer-guide.md)** - Contributing to the project
 - **[Testing Guide](../05-development/testing-strategy.md)** - Running tests
 
-## Available MCP Tools
+## Available MCP Tools (JSON-only)
 
 Once configured, Claude Desktop has access to these tools:
 
 | Tool | Description | Example Use |
 |------|-------------|-------------|
-| `search-semantic` | Find related content by meaning | "Find notes about productivity" |
+| Tool | Description | Example Use |
+|------|-------------|-------------|
+| `search-semantic` | Semantic search | "Find notes about productivity" |
 | `search-vault` | Keyword search | "Find notes containing 'docker'" |
-| `search-graph` | Discover relationships | "What's connected to this note?" |
-| `read-note` | Read specific files | "Read my daily note from yesterday" |
-| `list-vaults` | Vault management | "Show vault statistics" |
+| `search-graph` | Relationship discovery | "What's connected to this note?" |
+| `search-combined` | Hybrid (semantic + keyword) | "Best of both" |
+| `search-graphrag` | GraphRAG MVP | "Explain relationships around ML" |
+| `list-vaults` | Vault & model info | "Show vault statistics" |
+| `get-health-status` | Health | "System health" |
+| `get-performance-metrics` | Metrics | "Tool metrics" |
+| `analytics-cache-status` | Analytics cache | "Cache stats" |
+| `analytics-invalidate-cache` | Invalidate cache | "Clear analytics cache" |
 
 ## Common First Commands
 

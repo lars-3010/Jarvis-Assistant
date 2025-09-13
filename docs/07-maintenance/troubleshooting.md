@@ -742,14 +742,15 @@ uv run jarvis mcp --vault "$JARVIS_VAULT_PATH"
 
 **3. Use Environment File**
 ```bash
-# Create .env file in project directory
-cat > .env << EOF
+# Create config/.env file in project directory
+mkdir -p config
+cat > config/.env << EOF
 JARVIS_VAULT_PATH=/path/to/vault
 NEO4J_PASSWORD=your_password
 EOF
 
 # Load with direnv or manually
-source .env
+source config/.env
 ```
 
 ### Path Configuration Issues

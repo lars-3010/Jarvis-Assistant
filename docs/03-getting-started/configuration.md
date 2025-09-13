@@ -2,6 +2,8 @@
 
 *Understanding and customizing Jarvis Assistant settings*
 
+> Note (Updated): In addition to env vars and CLI flags, Jarvis supports YAML-based user configuration via `config/base.yaml` and `config/local.yaml` (merged). See "User YAML Configuration" below.
+
 ## Configuration Overview
 
 Jarvis Assistant uses a layered configuration system that allows customization through environment variables, configuration files, and command-line arguments.
@@ -12,7 +14,7 @@ Settings are applied in this order (highest to lowest priority):
 
 1. **Command-line arguments** (highest priority)
 2. **Environment variables**
-3. **Configuration file** (.env)
+3. **Configuration file** (config/.env)
 4. **Default values** (lowest priority)
 
 ## Core Configuration
@@ -120,10 +122,10 @@ NEO4J_CONNECTION_TIMEOUT=30
 #### Step 1: Copy Template
 ```bash
 # Copy example configuration
-cp resources/config/.env.example .env
+cp config/.env.example config/.env
 
 # Edit configuration
-nano .env
+nano config/.env
 ```
 
 #### Step 2: Example .env File
@@ -527,7 +529,7 @@ uv run python -c "from neo4j import GraphDatabase; driver = GraphDatabase.driver
 #### Reset to Defaults
 ```bash
 # Remove configuration file
-rm .env
+rm config/.env
 
 # Clear cache
 rm -rf ~/.cache/jarvis/

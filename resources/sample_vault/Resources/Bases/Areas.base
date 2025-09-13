@@ -1,0 +1,128 @@
+views:
+  - type: table
+    name: Table
+    filters:
+      and:
+        - file.inFolder("Areas")
+    order:
+      - file.name
+      - tags
+      - concepts
+      - domains
+      - summary
+      - "up::"
+      - reviewed
+      - sources
+    sort:
+      - property: tags
+        direction: DESC
+      - property: concepts
+        direction: ASC
+      - property: reviewed
+        direction: DESC
+      - property: file.ctime
+        direction: DESC
+      - property: created
+        direction: DESC
+      - property: sources
+        direction: ASC
+      - property: file.folder
+        direction: ASC
+    columnSize:
+      file.name: 272
+      note.tags: 97
+      note.domains: 128
+      note.summary: 196
+      "note.up::": 191
+      note.reviewed: 124
+      note.sources: 165
+  - type: table
+    name: Computer Science
+    filters:
+      and:
+        - file.inFolder("Areas/Computer Science")
+    order:
+      - file.name
+      - tags
+      - aliases
+      - summary
+      - concepts
+      - file.ctime
+    sort:
+      - property: tags
+        direction: DESC
+      - property: file.name
+        direction: ASC
+      - property: concepts
+        direction: ASC
+      - property: file.ctime
+        direction: DESC
+    columnSize:
+      file.name: 272
+      note.tags: 58
+      note.aliases: 90
+      note.summary: 237
+      note.concepts: 114
+      file.ctime: 162
+  - type: table
+    name: Engineering
+    filters:
+      and:
+        - file.inFolder("Areas/Engineering")
+    order:
+      - file.name
+      - tags
+      - concepts
+  - type: table
+    name: Natural Science
+    filters:
+      and:
+        - file.inFolder("Areas/Natural Science")
+    order:
+      - file.name
+      - tags
+      - concepts
+      - reviewed
+      - domains
+      - summary
+      - "up::"
+    sort:
+      - property: file.name
+        direction: ASC
+      - property: reviewed
+        direction: DESC
+      - property: tags
+        direction: ASC
+    columnSize:
+      file.name: 272
+      note.concepts: 154
+      note.tags: 60
+  - type: table
+    name: Personal Development
+    filters:
+      and:
+        - file.inFolder("Areas/Personal Development")
+    order:
+      - file.name
+      - tags
+      - concepts
+    sort:
+      - property: tags
+        direction: ASC
+  - type: table
+    name: Business Science
+    filters:
+      and:
+        - file.inFolder("Areas/Business Science")
+    order:
+      - file.name
+      - tags
+      - concepts
+    sort:
+      - property: concepts
+        direction: ASC
+  - type: table
+    name: Mathe
+    filters:
+      and:
+        - file.hasLink("Areas/Natural Science/Mathematics")

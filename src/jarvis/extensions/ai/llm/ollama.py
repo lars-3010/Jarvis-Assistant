@@ -8,33 +8,43 @@ interface with support for local model management and streaming.
 import asyncio
 import json
 import time
-from typing import Dict, Any, List, Optional, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Any
+
 import aiohttp
-import logging
-from datetime import datetime
+
+from jarvis.utils.logging import setup_logging
 
 from .interfaces import (
-    ILLMService, TaskType, LLMResponse, LLMResponseStatus, 
-    AnalysisResult, StreamingResponse, LLMConfig, ModelInfo
+    AnalysisResult,
+    ILLMService,
+    LLMConfig,
+    LLMResponse,
+    LLMResponseStatus,
+    ModelInfo,
+    StreamingResponse,
+    TaskType,
 )
 from .models import (
-    LLMError, ModelUnavailableError, LLMTimeoutError, 
-    LLMRateLimitError, ModelPerformanceMetrics, LLMServiceStatus
+    LLMError,
+    LLMRateLimitError,
+    LLMTimeoutError,
+    ModelPerformanceMetrics,
+    ModelUnavailableError,
 )
-from jarvis.utils.logging import setup_logging
 
 logger = setup_logging(__name__)
 
 
 class OllamaClient(ILLMService):
     """Ollama client implementation of ILLMService."""
-    
+
     def __init__(
-        self, 
+        self,
         base_url: str = "http://localhost:11434",
         timeout_seconds: int = 30,
         max_retries: int = 3,
-        model_config: Dict[str, Any] = None
+        model_config: dict[str, Any] = None
     ):
         """Initialize Ollama client.
         
@@ -48,26 +58,26 @@ class OllamaClient(ILLMService):
         self.timeout_seconds = timeout_seconds
         self.max_retries = max_retries
         self.model_config = model_config or {}
-        
+
         # Model management
-        self.available_models: Dict[str, ModelInfo] = {}
-        self.performance_metrics: Dict[str, ModelPerformanceMetrics] = {}
-        
+        self.available_models: dict[str, ModelInfo] = {}
+        self.performance_metrics: dict[str, ModelPerformanceMetrics] = {}
+
         # Session management
-        self.session: Optional[aiohttp.ClientSession] = None
+        self.session: aiohttp.ClientSession | None = None
         self.is_healthy = False
-        
+
         # Task-specific model routing
         self.task_model_mapping = {
             TaskType.SUMMARIZE: "mistral:7b-instruct-q4_K_M",
-            TaskType.ANALYZE: "llama3:8b-instruct-q8_0", 
+            TaskType.ANALYZE: "llama3:8b-instruct-q8_0",
             TaskType.QUICK_ANSWER: "tinyllama:1.1b",
             TaskType.GENERAL: "mistral:7b-instruct-q4_K_M",
             TaskType.GENERATE: "llama3:8b-instruct-q8_0",
             TaskType.EXTRACT: "mistral:7b-instruct-q4_K_M",
             TaskType.CLASSIFY: "mistral:7b-instruct-q4_K_M"
         }
-        
+
         # Default configurations per task
         self.task_configs = {
             TaskType.SUMMARIZE: {"temperature": 0.3, "max_tokens": 500},
@@ -78,35 +88,35 @@ class OllamaClient(ILLMService):
             TaskType.EXTRACT: {"temperature": 0.1, "max_tokens": 800},
             TaskType.CLASSIFY: {"temperature": 0.1, "max_tokens": 100}
         }
-        
+
         logger.info(f"Initialized Ollama client: {base_url}")
-    
+
     async def _ensure_session(self) -> aiohttp.ClientSession:
         """Ensure HTTP session is available."""
         if self.session is None or self.session.closed:
             timeout = aiohttp.ClientTimeout(total=self.timeout_seconds)
             self.session = aiohttp.ClientSession(timeout=timeout)
         return self.session
-    
+
     async def _make_request(
-        self, 
-        method: str, 
-        endpoint: str, 
-        data: Optional[Dict[str, Any]] = None,
+        self,
+        method: str,
+        endpoint: str,
+        data: dict[str, Any] | None = None,
         stream: bool = False
     ) -> Any:
         """Make HTTP request to Ollama API."""
         session = await self._ensure_session()
         url = f"{self.base_url}/{endpoint}"
-        
+
         headers = {"Content-Type": "application/json"}
-        
+
         for attempt in range(self.max_retries + 1):
             try:
                 async with session.request(
-                    method, 
-                    url, 
-                    json=data, 
+                    method,
+                    url,
+                    json=data,
                     headers=headers
                 ) as response:
                     if response.status == 200:
@@ -121,8 +131,8 @@ class OllamaClient(ILLMService):
                     else:
                         error_text = await response.text()
                         raise LLMError(f"Request failed: {response.status} - {error_text}")
-                        
-            except asyncio.TimeoutError:
+
+            except TimeoutError:
                 if attempt == self.max_retries:
                     raise LLMTimeoutError(f"Request timed out after {self.timeout_seconds}s")
                 await asyncio.sleep(2 ** attempt)  # Exponential backoff
@@ -131,28 +141,28 @@ class OllamaClient(ILLMService):
                     raise
                 logger.warning(f"Request attempt {attempt + 1} failed: {e}")
                 await asyncio.sleep(2 ** attempt)
-        
+
         raise LLMError("Max retries exceeded")
-    
+
     async def generate(
-        self, 
-        prompt: str, 
-        context: Optional[str] = None,
-        config: Optional[LLMConfig] = None
+        self,
+        prompt: str,
+        context: str | None = None,
+        config: LLMConfig | None = None
     ) -> LLMResponse:
         """Generate text using Ollama."""
         start_time = time.time()
-        
+
         # Determine task type and model
         task_type = config.task_type if config else TaskType.GENERAL
         model_name = self.get_model_for_task(task_type)
-        
+
         # Build full prompt
         full_prompt = self._build_prompt(prompt, context, task_type)
-        
+
         # Get configuration
         request_config = self._get_request_config(task_type, config)
-        
+
         try:
             # Make request to Ollama
             request_data = {
@@ -166,11 +176,11 @@ class OllamaClient(ILLMService):
                     "stop": request_config.get("stop_sequences", [])
                 }
             }
-            
+
             response_data = await self._make_request("POST", "api/generate", request_data)
-            
+
             response_time = (time.time() - start_time) * 1000
-            
+
             # Create response
             response = LLMResponse(
                 text=response_data.get("response", ""),
@@ -186,20 +196,20 @@ class OllamaClient(ILLMService):
                     "eval_duration": response_data.get("eval_duration", 0)
                 }
             )
-            
+
             # Calculate token information
             response.input_tokens = response_data.get("prompt_eval_count", 0)
             response.output_tokens = response_data.get("eval_count", 0)
-            
+
             # Update performance metrics
             self._update_performance_metrics(model_name, task_type, response_time, True)
-            
+
             return response
-            
+
         except Exception as e:
             response_time = (time.time() - start_time) * 1000
             self._update_performance_metrics(model_name, task_type, response_time, False)
-            
+
             error_response = LLMResponse(
                 text="",
                 model_used=model_name,
@@ -208,29 +218,29 @@ class OllamaClient(ILLMService):
                 error_message=str(e),
                 response_time_ms=response_time
             )
-            
+
             if isinstance(e, LLMTimeoutError):
                 error_response.status = LLMResponseStatus.TIMEOUT
             elif isinstance(e, ModelUnavailableError):
                 error_response.status = LLMResponseStatus.MODEL_UNAVAILABLE
             elif isinstance(e, LLMRateLimitError):
                 error_response.status = LLMResponseStatus.RATE_LIMITED
-            
+
             return error_response
-    
+
     async def generate_stream(
-        self, 
-        prompt: str, 
-        context: Optional[str] = None,
-        config: Optional[LLMConfig] = None
+        self,
+        prompt: str,
+        context: str | None = None,
+        config: LLMConfig | None = None
     ) -> AsyncGenerator[StreamingResponse, None]:
         """Generate text using streaming."""
         task_type = config.task_type if config else TaskType.GENERAL
         model_name = self.get_model_for_task(task_type)
-        
+
         full_prompt = self._build_prompt(prompt, context, task_type)
         request_config = self._get_request_config(task_type, config)
-        
+
         request_data = {
             "model": model_name,
             "prompt": full_prompt,
@@ -241,16 +251,16 @@ class OllamaClient(ILLMService):
                 "top_p": request_config.get("top_p", 0.9)
             }
         }
-        
+
         try:
             response = await self._make_request("POST", "api/generate", request_data, stream=True)
-            
+
             chunk_index = 0
             async for line in response.content:
                 if line:
                     try:
                         chunk_data = json.loads(line.decode('utf-8'))
-                        
+
                         if chunk_data.get("done", False):
                             yield StreamingResponse(
                                 chunk="",
@@ -259,7 +269,7 @@ class OllamaClient(ILLMService):
                                 metadata=chunk_data
                             )
                             break
-                        
+
                         chunk_text = chunk_data.get("response", "")
                         if chunk_text:
                             yield StreamingResponse(
@@ -269,10 +279,10 @@ class OllamaClient(ILLMService):
                                 metadata={"model": model_name}
                             )
                             chunk_index += 1
-                            
+
                     except json.JSONDecodeError:
                         continue
-                        
+
         except Exception as e:
             yield StreamingResponse(
                 chunk="",
@@ -280,47 +290,47 @@ class OllamaClient(ILLMService):
                 chunk_index=0,
                 metadata={"error": str(e)}
             )
-    
+
     async def summarize(
-        self, 
-        text: str, 
+        self,
+        text: str,
         style: str = "bullet",
-        max_length: Optional[int] = None
+        max_length: int | None = None
     ) -> LLMResponse:
         """Summarize text content."""
         prompt = self._build_summarize_prompt(text, style, max_length)
-        
+
         config = LLMConfig(
             task_type=TaskType.SUMMARIZE,
             temperature=0.3,
             max_tokens=max_length or 500
         )
-        
+
         return await self.generate(prompt, config=config)
-    
+
     async def analyze(
-        self, 
-        content: List[str], 
+        self,
+        content: list[str],
         question: str,
         analysis_type: str = "general"
     ) -> AnalysisResult:
         """Analyze content and answer questions."""
         start_time = time.time()
-        
+
         # Combine content
         combined_content = "\n\n".join(content)
-        
+
         # Build analysis prompt
         prompt = self._build_analyze_prompt(combined_content, question, analysis_type)
-        
+
         config = LLMConfig(
             task_type=TaskType.ANALYZE,
             temperature=0.5,
             max_tokens=1000
         )
-        
+
         response = await self.generate(prompt, config=config)
-        
+
         # Parse response into AnalysisResult
         result = AnalysisResult(
             answer=response.text,
@@ -328,73 +338,73 @@ class OllamaClient(ILLMService):
             processing_time_ms=(time.time() - start_time) * 1000,
             analysis_method="ollama_llm"
         )
-        
+
         # Extract key points (simple implementation)
         if "Key points:" in response.text:
             lines = response.text.split("\n")
             key_points = [
-                line.strip("- ").strip() 
-                for line in lines 
+                line.strip("- ").strip()
+                for line in lines
                 if line.strip().startswith("- ")
             ]
             result.key_points = key_points
-        
+
         return result
-    
+
     async def quick_answer(
-        self, 
-        question: str, 
-        context: Optional[str] = None
+        self,
+        question: str,
+        context: str | None = None
     ) -> LLMResponse:
         """Get quick answer to a question."""
         prompt = f"Answer concisely: {question}"
-        
+
         config = LLMConfig(
             task_type=TaskType.QUICK_ANSWER,
             temperature=0.2,
             max_tokens=200
         )
-        
+
         return await self.generate(prompt, context=context, config=config)
-    
+
     async def extract_information(
-        self, 
-        text: str, 
-        extraction_schema: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self,
+        text: str,
+        extraction_schema: dict[str, Any]
+    ) -> dict[str, Any]:
         """Extract structured information from text."""
         prompt = self._build_extraction_prompt(text, extraction_schema)
-        
+
         config = LLMConfig(
             task_type=TaskType.EXTRACT,
             temperature=0.1,
             max_tokens=800
         )
-        
+
         response = await self.generate(prompt, config=config)
-        
+
         # Parse JSON response (simplified)
         try:
             return json.loads(response.text)
         except json.JSONDecodeError:
             return {"error": "Failed to parse extracted information", "raw_response": response.text}
-    
+
     async def classify_text(
-        self, 
-        text: str, 
-        categories: List[str]
-    ) -> Dict[str, float]:
+        self,
+        text: str,
+        categories: list[str]
+    ) -> dict[str, float]:
         """Classify text into categories."""
         prompt = self._build_classification_prompt(text, categories)
-        
+
         config = LLMConfig(
             task_type=TaskType.CLASSIFY,
             temperature=0.1,
             max_tokens=100
         )
-        
+
         response = await self.generate(prompt, config=config)
-        
+
         # Parse classification response (simplified)
         results = {}
         for category in categories:
@@ -402,53 +412,53 @@ class OllamaClient(ILLMService):
                 results[category] = 0.8  # Simplified scoring
             else:
                 results[category] = 0.2
-        
+
         return results
-    
+
     def get_model_for_task(self, task_type: TaskType) -> str:
         """Get the best model for a specific task type."""
         return self.task_model_mapping.get(task_type, "mistral:7b-instruct-q4_K_M")
-    
-    def get_model_info(self, model_name: str) -> Optional[ModelInfo]:
+
+    def get_model_info(self, model_name: str) -> ModelInfo | None:
         """Get information about a model."""
         return self.available_models.get(model_name)
-    
-    def list_available_models(self) -> List[ModelInfo]:
+
+    def list_available_models(self) -> list[ModelInfo]:
         """List all available models."""
         return list(self.available_models.values())
-    
+
     async def download_model(self, model_name: str) -> bool:
         """Download a model if not available locally."""
         try:
             request_data = {"name": model_name}
             await self._make_request("POST", "api/pull", request_data)
-            
+
             # Refresh model list
             await self._refresh_model_list()
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to download model {model_name}: {e}")
             return False
-    
-    async def health_check(self) -> Dict[str, Any]:
+
+    async def health_check(self) -> dict[str, Any]:
         """Check health of Ollama service."""
         try:
             # Test basic connectivity
             await self._make_request("GET", "api/version")
-            
+
             # Refresh model list
             await self._refresh_model_list()
-            
+
             self.is_healthy = True
-            
+
             return {
                 "status": "healthy",
                 "base_url": self.base_url,
                 "available_models": len(self.available_models),
                 "model_names": list(self.available_models.keys())
             }
-            
+
         except Exception as e:
             self.is_healthy = False
             return {
@@ -456,8 +466,8 @@ class OllamaClient(ILLMService):
                 "error": str(e),
                 "base_url": self.base_url
             }
-    
-    async def get_resource_usage(self) -> Dict[str, Any]:
+
+    async def get_resource_usage(self) -> dict[str, Any]:
         """Get current resource usage statistics."""
         return {
             "active_models": len(self.available_models),
@@ -470,32 +480,32 @@ class OllamaClient(ILLMService):
                 for name, metrics in self.performance_metrics.items()
             }
         }
-    
-    def _build_prompt(self, prompt: str, context: Optional[str], task_type: TaskType) -> str:
+
+    def _build_prompt(self, prompt: str, context: str | None, task_type: TaskType) -> str:
         """Build full prompt with context and task-specific formatting."""
         if context:
             return f"Context: {context}\n\nTask: {prompt}"
         return prompt
-    
-    def _build_summarize_prompt(self, text: str, style: str, max_length: Optional[int]) -> str:
+
+    def _build_summarize_prompt(self, text: str, style: str, max_length: int | None) -> str:
         """Build prompt for summarization."""
         length_instruction = f" in {max_length} words or less" if max_length else ""
-        
+
         style_instructions = {
             "bullet": "Use bullet points for key information.",
             "paragraph": "Write in paragraph form.",
             "outline": "Use an outline format with main points and sub-points."
         }
-        
+
         style_instruction = style_instructions.get(style, "")
-        
+
         return f"""Summarize the following text{length_instruction}. {style_instruction}
 
 Text to summarize:
 {text}
 
 Summary:"""
-    
+
     def _build_analyze_prompt(self, content: str, question: str, analysis_type: str) -> str:
         """Build prompt for analysis."""
         return f"""Analyze the following content and answer the question.
@@ -513,8 +523,8 @@ Please provide:
 3. Supporting evidence
 
 Answer:"""
-    
-    def _build_extraction_prompt(self, text: str, schema: Dict[str, Any]) -> str:
+
+    def _build_extraction_prompt(self, text: str, schema: dict[str, Any]) -> str:
         """Build prompt for information extraction."""
         return f"""Extract the following information from the text and return as JSON:
 
@@ -524,8 +534,8 @@ Text:
 {text}
 
 JSON:"""
-    
-    def _build_classification_prompt(self, text: str, categories: List[str]) -> str:
+
+    def _build_classification_prompt(self, text: str, categories: list[str]) -> str:
         """Build prompt for text classification."""
         return f"""Classify the following text into one or more of these categories: {', '.join(categories)}
 
@@ -533,12 +543,12 @@ Text:
 {text}
 
 Classification:"""
-    
-    def _get_request_config(self, task_type: TaskType, config: Optional[LLMConfig]) -> Dict[str, Any]:
+
+    def _get_request_config(self, task_type: TaskType, config: LLMConfig | None) -> dict[str, Any]:
         """Get request configuration for task type."""
         # Start with task-specific defaults
         request_config = self.task_configs.get(task_type, {}).copy()
-        
+
         # Apply user config overrides
         if config:
             if config.temperature is not None:
@@ -549,37 +559,37 @@ Classification:"""
                 request_config["top_p"] = config.top_p
             if config.stop_sequences:
                 request_config["stop_sequences"] = config.stop_sequences
-        
+
         return request_config
-    
+
     def _update_performance_metrics(
-        self, 
-        model_name: str, 
-        task_type: TaskType, 
-        response_time: float, 
+        self,
+        model_name: str,
+        task_type: TaskType,
+        response_time: float,
         success: bool
     ) -> None:
         """Update performance metrics for a model."""
         key = f"{model_name}_{task_type.value}"
-        
+
         if key not in self.performance_metrics:
             self.performance_metrics[key] = ModelPerformanceMetrics(
                 model_name=model_name,
                 task_type=task_type
             )
-        
+
         self.performance_metrics[key].update_metrics(response_time, success)
-    
+
     async def _refresh_model_list(self) -> None:
         """Refresh the list of available models."""
         try:
             response = await self._make_request("GET", "api/tags")
-            
+
             self.available_models.clear()
-            
+
             for model_data in response.get("models", []):
                 model_name = model_data.get("name", "")
-                
+
                 # Parse model info
                 model_info = ModelInfo(
                     name=model_name,
@@ -588,12 +598,12 @@ Classification:"""
                     quantization=self._extract_quantization(model_name),
                     is_available=True
                 )
-                
+
                 self.available_models[model_name] = model_info
-                
+
         except Exception as e:
             logger.error(f"Failed to refresh model list: {e}")
-    
+
     def _extract_model_size(self, model_name: str) -> str:
         """Extract model size from model name."""
         parts = model_name.split(":")
@@ -608,8 +618,8 @@ Classification:"""
             elif "1.1b" in size_part:
                 return "1.1b"
         return "unknown"
-    
-    def _extract_quantization(self, model_name: str) -> Optional[str]:
+
+    def _extract_quantization(self, model_name: str) -> str | None:
         """Extract quantization from model name."""
         if "q4" in model_name.lower():
             return "q4"
@@ -618,7 +628,7 @@ Classification:"""
         elif "q16" in model_name.lower():
             return "q16"
         return None
-    
+
     async def close(self) -> None:
         """Close the client and cleanup resources."""
         if self.session and not self.session.closed:

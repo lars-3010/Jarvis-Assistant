@@ -4,8 +4,16 @@
 # This script contains various commands used to test and debug the MCP server
 # during the development process.
 
-# Load environment variables
-source .env 2>/dev/null || echo "Warning: .env file not found"
+# Load environment variables (prefer config/.env; fallback to project .env)
+if [ -f "config/.env" ]; then
+  # shellcheck disable=SC1091
+  source config/.env
+elif [ -f ".env" ]; then
+  # shellcheck disable=SC1091
+  source .env
+else
+  echo "Warning: config/.env (or .env) file not found"
+fi
 
 echo "=== MCP Server Testing Commands ==="
 

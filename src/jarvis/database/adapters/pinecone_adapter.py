@@ -5,24 +5,22 @@ This module provides a Pinecone implementation of the IVectorDatabase interface,
 allowing the system to use Pinecone as a cloud-based vector database backend.
 """
 
+import time
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Optional, List, Dict, Any
-import json
-import time
 
 import torch
 
 from jarvis.core.interfaces import IVectorDatabase
-from jarvis.utils.logging import setup_logging
 from jarvis.utils.errors import JarvisError, ServiceError
+from jarvis.utils.logging import setup_logging
 
 logger = setup_logging(__name__)
 
 
 class PineconeVectorDatabase(IVectorDatabase):
     """Pinecone-based vector database for document embeddings."""
-    
+
     def __init__(self, api_key: str, environment: str, index_name: str = "jarvis-embeddings"):
         """Initialize the Pinecone vector database.
         
@@ -35,15 +33,15 @@ class PineconeVectorDatabase(IVectorDatabase):
             import pinecone
         except ImportError:
             raise ServiceError("Pinecone is not installed. Install with: pip install pinecone-client")
-        
+
         self.api_key = api_key
         self.environment = environment
         self.index_name = index_name
-        
+
         try:
             # Initialize Pinecone
             pinecone.init(api_key=api_key, environment=environment)
-            
+
             # Connect to index
             if index_name not in pinecone.list_indexes():
                 # Create index if it doesn't exist
@@ -56,10 +54,10 @@ class PineconeVectorDatabase(IVectorDatabase):
                 # Wait for index to be ready
                 while not pinecone.describe_index(index_name).status['ready']:
                     time.sleep(1)
-            
+
             self.index = pinecone.Index(index_name)
             logger.info(f"Connected to Pinecone index: {index_name}")
-            
+
         except Exception as e:
             raise ServiceError(f"Failed to connect to Pinecone: {e}") from e
 
@@ -76,12 +74,12 @@ class PineconeVectorDatabase(IVectorDatabase):
         api_key = config.get('api_key')
         environment = config.get('environment')
         index_name = config.get('index_name', 'jarvis-embeddings')
-        
+
         if not api_key:
             raise ServiceError("Pinecone API key is required")
         if not environment:
             raise ServiceError("Pinecone environment is required")
-        
+
         return cls(api_key=api_key, environment=environment, index_name=index_name)
 
     def close(self) -> None:
@@ -98,7 +96,7 @@ class PineconeVectorDatabase(IVectorDatabase):
             logger.error(f"Failed to count notes: {e}")
             raise JarvisError(f"Failed to count notes: {e}") from e
 
-    def get_most_recent_seen_timestamp(self, vault_name: str) -> Optional[float]:
+    def get_most_recent_seen_timestamp(self, vault_name: str) -> float | None:
         """Get the most recent seen timestamp for a vault."""
         try:
             # Query all vectors for this vault and find max timestamp
@@ -109,26 +107,26 @@ class PineconeVectorDatabase(IVectorDatabase):
                 top_k=10000,  # Large number to get all results
                 include_metadata=True
             )
-            
+
             timestamps = [
-                match.metadata.get('last_modified', 0) 
+                match.metadata.get('last_modified', 0)
                 for match in query_response.matches
                 if match.metadata.get('last_modified')
             ]
-            
+
             return max(timestamps) if timestamps else None
-            
+
         except Exception as e:
             logger.error(f"Failed to get recent timestamp for vault {vault_name}: {e}")
             raise JarvisError(f"Failed to get recent timestamp for vault {vault_name}: {e}") from e
 
     def store_note(
-        self, 
-        path: Path, 
-        vault_name: str, 
-        last_modified: float, 
-        embedding: List[float],
-        checksum: Optional[str] = None
+        self,
+        path: Path,
+        vault_name: str,
+        last_modified: float,
+        embedding: list[float],
+        checksum: str | None = None
     ) -> bool:
         """Store a note in the database.
         
@@ -143,32 +141,32 @@ class PineconeVectorDatabase(IVectorDatabase):
             True if successful, False otherwise
         """
         try:
-            vector_id = f"{vault_name}::{str(path)}"
-            
+            vector_id = f"{vault_name}::{path!s}"
+
             metadata = {
                 "vault_name": vault_name,
                 "path": str(path),
                 "last_modified": last_modified,
                 "checksum": checksum or ""
             }
-            
+
             # Upsert vector (insert or update)
             self.index.upsert(
                 vectors=[(vector_id, embedding, metadata)]
             )
-            
+
             logger.debug(f"Stored note: {vault_name}/{path}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to store note {vault_name}/{path}: {e}")
             raise JarvisError(f"Failed to store note {vault_name}/{path}: {e}") from e
 
     def search(
-        self, 
-        query_embedding: torch.Tensor, 
+        self,
+        query_embedding: torch.Tensor,
         top_k: int = 10,
-        vault_name: Optional[str] = None
+        vault_name: str | None = None
     ) -> Sequence[tuple[str, Path, float]]:
         """Search for notes similar to a query embedding.
         
@@ -185,7 +183,7 @@ class PineconeVectorDatabase(IVectorDatabase):
             filter_dict = None
             if vault_name:
                 filter_dict = {"vault_name": vault_name}
-            
+
             # Perform similarity search
             query_response = self.index.query(
                 vector=query_embedding.tolist(),
@@ -193,7 +191,7 @@ class PineconeVectorDatabase(IVectorDatabase):
                 filter=filter_dict,
                 include_metadata=True
             )
-            
+
             # Format results
             search_results = []
             for match in query_response.matches:
@@ -201,24 +199,24 @@ class PineconeVectorDatabase(IVectorDatabase):
                 path = Path(match.metadata['path'])
                 similarity = match.score  # Pinecone returns similarity scores
                 search_results.append((vault, path, similarity))
-            
+
             return search_results
-            
+
         except Exception as e:
             logger.error(f"Search failed: {e}")
             raise JarvisError(f"Search failed: {e}") from e
 
-    def get_note_by_path(self, vault_name: str, path: Path) -> Optional[dict]:
+    def get_note_by_path(self, vault_name: str, path: Path) -> dict | None:
         """Get a specific note by vault name and path."""
         try:
-            vector_id = f"{vault_name}::{str(path)}"
-            
+            vector_id = f"{vault_name}::{path!s}"
+
             fetch_response = self.index.fetch(ids=[vector_id])
-            
+
             if vector_id in fetch_response.vectors:
                 vector_data = fetch_response.vectors[vector_id]
                 metadata = vector_data.metadata
-                
+
                 return {
                     'path': metadata['path'],
                     'vault_name': metadata['vault_name'],
@@ -226,9 +224,9 @@ class PineconeVectorDatabase(IVectorDatabase):
                     'embedding': vector_data.values,
                     'checksum': metadata.get('checksum')
                 }
-            
+
             return None
-            
+
         except Exception as e:
             logger.error(f"Failed to get note {vault_name}/{path}: {e}")
             raise JarvisError(f"Failed to get note {vault_name}/{path}: {e}") from e
@@ -236,11 +234,11 @@ class PineconeVectorDatabase(IVectorDatabase):
     def delete_note(self, vault_name: str, path: Path) -> bool:
         """Delete a note from the database."""
         try:
-            vector_id = f"{vault_name}::{str(path)}"
+            vector_id = f"{vault_name}::{path!s}"
             self.index.delete(ids=[vector_id])
             logger.debug(f"Deleted note: {vault_name}/{path}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to delete note {vault_name}/{path}: {e}")
             raise JarvisError(f"Failed to delete note {vault_name}/{path}: {e}") from e
@@ -250,7 +248,7 @@ class PineconeVectorDatabase(IVectorDatabase):
         try:
             # Get index stats with filter
             stats = self.index.describe_index_stats(filter={"vault_name": vault_name})
-            
+
             # Query for timestamp statistics
             query_response = self.index.query(
                 vector=[0.0] * 384,  # Dummy vector
@@ -258,20 +256,20 @@ class PineconeVectorDatabase(IVectorDatabase):
                 top_k=10000,  # Large number to get all results
                 include_metadata=True
             )
-            
+
             timestamps = [
-                match.metadata.get('last_modified', 0) 
+                match.metadata.get('last_modified', 0)
                 for match in query_response.matches
                 if match.metadata.get('last_modified')
             ]
-            
+
             return {
                 'vault_name': vault_name,
                 'note_count': len(query_response.matches),
                 'latest_modified': max(timestamps) if timestamps else None,
                 'earliest_modified': min(timestamps) if timestamps else None
             }
-            
+
         except Exception as e:
             logger.error(f"Failed to get vault stats for {vault_name}: {e}")
             raise JarvisError(f"Failed to get vault stats for {vault_name}: {e}") from e

@@ -110,6 +110,6 @@
 
 ## For More Detail
 
-- **Technical Implementation**: [System Design](../02-system-design/data-flow.md)
+- **Technical Implementation**: [System Design](../02-architecture/data-flow.md)
 - **Practical Usage**: [Common Workflows](../04-usage/common-workflows.md)
 - **API Reference**: [MCP Tools Reference](../06-reference/api-reference.md)

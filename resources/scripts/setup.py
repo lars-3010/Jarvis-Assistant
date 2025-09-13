@@ -44,15 +44,17 @@ def setup_environment() -> bool:
     project_root = Path(__file__).parent.parent
     os.chdir(project_root)
     
-    # Create .env file if it doesn't exist
-    env_file = project_root / ".env"
-    env_example = project_root / ".env.example"
+    # Create config/.env file if it doesn't exist
+    env_dir = project_root / "config"
+    env_dir.mkdir(parents=True, exist_ok=True)
+    env_file = env_dir / ".env"
+    env_example = env_dir / ".env.example"
     
     if not env_file.exists() and env_example.exists():
-        print("Creating .env file from template...")
+        print("Creating config/.env file from template...")
         shutil.copy(env_example, env_file)
         print(f"Created {env_file}")
-        print("Please edit .env file to configure your vault path and other settings.")
+        print("Please edit config/.env to configure your vault path and other settings.")
     
     # Create data directory
     data_dir = project_root / "data"
@@ -179,7 +181,7 @@ def main():
     
     print("\n=== Setup Complete ===")
     print("Next steps:")
-    print("1. Edit .env file to configure your vault path")
+    print("1. Edit config/.env to configure your vault path")
     print("2. Start Neo4j service: docker compose -f docker/docker-compose.services.yml up -d")
     print("3. Test the installation: uv run jarvis --help")
     print("4. Index your vault: uv run jarvis index --vault /path/to/vault")

@@ -5,22 +5,20 @@ This module provides the central registry for managing MCP tool plugins,
 including registration, validation, and retrieval of plugins.
 """
 
-from typing import Dict, List, Optional, Type, Set, Any
 from collections import defaultdict
-import asyncio
-from pathlib import Path
+from typing import Any
 
-from mcp import types
 from jarvis.mcp.plugins.base import MCPToolPlugin, PluginMetadata
+from jarvis.utils.errors import PluginError
 from jarvis.utils.logging import setup_logging
-from jarvis.utils.errors import PluginError, JarvisError
+from mcp import types
 
 logger = setup_logging(__name__)
 
 
 class PluginRegistry:
     """Central registry for MCP tool plugins."""
-    
+
     def __init__(self, container=None):
         """Initialize the plugin registry.
         
@@ -28,15 +26,15 @@ class PluginRegistry:
             container: Optional service container for dependency injection
         """
         self.container = container
-        self._plugins: Dict[str, MCPToolPlugin] = {}
-        self._plugin_classes: Dict[str, Type[MCPToolPlugin]] = {}
-        self._tags: Dict[str, Set[str]] = defaultdict(set)
-        self._metadata: Dict[str, PluginMetadata] = {}
-        self._loaded_plugins: Set[str] = set()
-        
+        self._plugins: dict[str, MCPToolPlugin] = {}
+        self._plugin_classes: dict[str, type[MCPToolPlugin]] = {}
+        self._tags: dict[str, set[str]] = defaultdict(set)
+        self._metadata: dict[str, PluginMetadata] = {}
+        self._loaded_plugins: set[str] = set()
+
         logger.info("Plugin registry initialized")
-    
-    def register_plugin_class(self, plugin_class: Type[MCPToolPlugin]) -> bool:
+
+    def register_plugin_class(self, plugin_class: type[MCPToolPlugin]) -> bool:
         """Register a plugin class for later instantiation.
         
         Args:
@@ -49,28 +47,28 @@ class PluginRegistry:
             # Create temporary instance to get name and validate
             temp_instance = plugin_class(self.container)
             plugin_name = temp_instance.name
-            
+
             if not temp_instance.validate():
                 logger.error(f"Plugin class {plugin_class.__name__} failed validation")
                 return False
-            
+
             if plugin_name in self._plugin_classes:
                 logger.warning(f"Plugin class {plugin_name} already registered, overwriting")
-            
+
             self._plugin_classes[plugin_name] = plugin_class
             self._metadata[plugin_name] = temp_instance.metadata
-            
+
             # Store tags
             for tag in temp_instance.metadata.tags or []:
                 self._tags[tag].add(plugin_name)
-            
+
             logger.info(f"Registered plugin class: {plugin_name}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to register plugin class {plugin_class.__name__}: {e}")
             return False
-    
+
     def register_plugin_instance(self, plugin: MCPToolPlugin) -> bool:
         """Register a plugin instance directly.
         
@@ -84,30 +82,39 @@ class PluginRegistry:
             if not plugin.validate():
                 logger.error(f"Plugin {plugin.name} failed validation")
                 return False
-            
+
             if plugin.name in self._plugins:
                 logger.warning(f"Plugin {plugin.name} already registered, overwriting")
                 self.unregister_plugin(plugin.name)
-            
+
             self._plugins[plugin.name] = plugin
             self._metadata[plugin.name] = plugin.metadata
-            
+
             # Store tags
             for tag in plugin.metadata.tags or []:
                 self._tags[tag].add(plugin.name)
-            
+
+            # Register plugin schema automatically
+            try:
+                # Import here to avoid circular imports
+                from jarvis.mcp.schemas.integration import auto_register_plugin_schema
+                auto_register_plugin_schema(plugin)
+                logger.debug(f"Schema registered for plugin: {plugin.name}")
+            except Exception as e:
+                logger.warning(f"Failed to register schema for plugin {plugin.name}: {e}")
+
             # Call plugin lifecycle method
             plugin.on_load()
             self._loaded_plugins.add(plugin.name)
-            
+
             logger.info(f"Registered plugin instance: {plugin.name}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to register plugin {plugin.name}: {e}")
             return False
-    
-    def load_plugin(self, plugin_name: str) -> Optional[MCPToolPlugin]:
+
+    def load_plugin(self, plugin_name: str) -> MCPToolPlugin | None:
         """Load a plugin from its registered class.
         
         Args:
@@ -119,23 +126,23 @@ class PluginRegistry:
         try:
             if plugin_name in self._plugins:
                 return self._plugins[plugin_name]
-            
+
             if plugin_name not in self._plugin_classes:
                 logger.error(f"Plugin class {plugin_name} not found in registry")
                 return None
-            
+
             plugin_class = self._plugin_classes[plugin_name]
             plugin_instance = plugin_class(self.container)
-            
+
             if self.register_plugin_instance(plugin_instance):
                 return plugin_instance
-            
+
             return None
-            
+
         except Exception as e:
             logger.error(f"Failed to load plugin {plugin_name}: {e}")
             return None
-    
+
     def unregister_plugin(self, plugin_name: str) -> bool:
         """Unregister a plugin.
         
@@ -151,25 +158,25 @@ class PluginRegistry:
                 plugin.on_unload()
                 del self._plugins[plugin_name]
                 self._loaded_plugins.discard(plugin_name)
-            
+
             if plugin_name in self._plugin_classes:
                 del self._plugin_classes[plugin_name]
-            
+
             if plugin_name in self._metadata:
                 metadata = self._metadata[plugin_name]
                 # Remove from tags
                 for tag in metadata.tags or []:
                     self._tags[tag].discard(plugin_name)
                 del self._metadata[plugin_name]
-            
+
             logger.info(f"Unregistered plugin: {plugin_name}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to unregister plugin {plugin_name}: {e}")
             return False
-    
-    def get_plugin(self, plugin_name: str) -> Optional[MCPToolPlugin]:
+
+    def get_plugin(self, plugin_name: str) -> MCPToolPlugin | None:
         """Get a plugin instance by name.
         
         Args:
@@ -180,11 +187,11 @@ class PluginRegistry:
         """
         if plugin_name in self._plugins:
             return self._plugins[plugin_name]
-        
+
         # Try to load if class is registered
         return self.load_plugin(plugin_name)
-    
-    def list_plugins(self, loaded_only: bool = False) -> List[str]:
+
+    def list_plugins(self, loaded_only: bool = False) -> list[str]:
         """List all registered plugin names.
         
         Args:
@@ -195,11 +202,11 @@ class PluginRegistry:
         """
         if loaded_only:
             return list(self._loaded_plugins)
-        
+
         all_plugins = set(self._plugin_classes.keys()) | set(self._plugins.keys())
         return sorted(all_plugins)
-    
-    def get_plugins_by_tag(self, tag: str) -> List[MCPToolPlugin]:
+
+    def get_plugins_by_tag(self, tag: str) -> list[MCPToolPlugin]:
         """Get all plugins with a specific tag.
         
         Args:
@@ -210,22 +217,22 @@ class PluginRegistry:
         """
         plugin_names = self._tags.get(tag, set())
         plugins = []
-        
+
         for name in plugin_names:
             plugin = self.get_plugin(name)
             if plugin:
                 plugins.append(plugin)
-        
+
         return plugins
-    
-    def get_tool_definitions(self) -> List[types.Tool]:
+
+    def get_tool_definitions(self) -> list[types.Tool]:
         """Get MCP tool definitions for all loaded plugins.
         
         Returns:
             List of MCP Tool definitions
         """
         tools = []
-        
+
         for plugin_name in self._loaded_plugins:
             try:
                 plugin = self._plugins[plugin_name]
@@ -233,10 +240,10 @@ class PluginRegistry:
                 tools.append(tool_def)
             except Exception as e:
                 logger.error(f"Failed to get tool definition for {plugin_name}: {e}")
-        
+
         return tools
-    
-    async def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> List[types.TextContent]:
+
+    async def execute_tool(self, tool_name: str, arguments: dict[str, Any]) -> list[types.TextContent]:
         """Execute a tool by name.
         
         Args:
@@ -252,32 +259,52 @@ class PluginRegistry:
         plugin = self.get_plugin(tool_name)
         if not plugin:
             raise PluginError(f"Tool '{tool_name}' not found in registry")
-        
+
         try:
             # Check dependencies before execution
             if not plugin.check_dependencies():
                 raise PluginError(f"Tool '{tool_name}' dependencies not satisfied")
-            
+
+            # Validate input against registered JSON schema (if available)
+            try:
+                # Import locally to avoid circular imports at module load
+                from jarvis.mcp.schemas.registry import get_schema_registry
+                schema_registry = get_schema_registry()
+                validation = schema_registry.validate_tool_input(tool_name, arguments or {})
+                if not validation.is_valid:
+                    # Format validation errors for user
+                    lines = [f"❌ Input validation failed for '{tool_name}':\n"]
+                    for err in validation.errors:
+                        path = err.path or "root"
+                        lines.append(f"- [ERROR] {path}: {err.message}")
+                    for warn in validation.warnings:
+                        path = warn.path or "root"
+                        lines.append(f"- [WARN] {path}: {warn.message}")
+                    return [types.TextContent(type="text", text="\n".join(lines))]
+            except Exception as ve:
+                # Non-fatal: continue execution if registry not initialized
+                logger.debug(f"Schema validation skipped for {tool_name}: {ve}")
+
             result = await plugin.execute(arguments)
             logger.debug(f"Tool {tool_name} executed successfully")
             return result
-            
+
         except Exception as e:
             logger.error(f"Tool {tool_name} execution failed: {e}")
             raise PluginError(f"Tool '{tool_name}' execution failed: {e}") from e
-    
-    def validate_all_plugins(self) -> Dict[str, bool]:
+
+    def validate_all_plugins(self) -> dict[str, bool]:
         """Validate all registered plugins.
         
         Returns:
             Dictionary mapping plugin names to validation results
         """
         results = {}
-        
+
         # Validate loaded instances
         for name, plugin in self._plugins.items():
             results[name] = plugin.validate()
-        
+
         # Validate registered classes (create temp instances)
         for name, plugin_class in self._plugin_classes.items():
             if name not in results:  # Not already loaded
@@ -287,10 +314,10 @@ class PluginRegistry:
                 except Exception as e:
                     logger.error(f"Failed to validate plugin class {name}: {e}")
                     results[name] = False
-        
+
         return results
-    
-    def get_plugin_metadata(self, plugin_name: str) -> Optional[PluginMetadata]:
+
+    def get_plugin_metadata(self, plugin_name: str) -> PluginMetadata | None:
         """Get metadata for a plugin.
         
         Args:
@@ -300,8 +327,8 @@ class PluginRegistry:
             Plugin metadata or None if not found
         """
         return self._metadata.get(plugin_name)
-    
-    def get_registry_info(self) -> Dict[str, Any]:
+
+    def get_registry_info(self) -> dict[str, Any]:
         """Get comprehensive information about the plugin registry.
         
         Returns:
@@ -315,33 +342,33 @@ class PluginRegistry:
             "tags": {tag: list(plugins) for tag, plugins in self._tags.items()},
             "validation_status": self.validate_all_plugins()
         }
-    
-    def load_all_plugins(self) -> Dict[str, bool]:
+
+    def load_all_plugins(self) -> dict[str, bool]:
         """Load all registered plugin classes.
         
         Returns:
             Dictionary mapping plugin names to load success status
         """
         results = {}
-        
+
         for plugin_name in self._plugin_classes:
             if plugin_name not in self._loaded_plugins:
                 plugin = self.load_plugin(plugin_name)
                 results[plugin_name] = plugin is not None
             else:
                 results[plugin_name] = True  # Already loaded
-        
+
         logger.info(f"Loaded {sum(results.values())}/{len(results)} plugins")
         return results
-    
+
     def unload_all_plugins(self) -> None:
         """Unload all loaded plugins."""
         plugin_names = list(self._loaded_plugins)
         for name in plugin_names:
             self.unregister_plugin(name)
-        
+
         logger.info("All plugins unloaded")
-    
+
     def reload_plugin(self, plugin_name: str) -> bool:
         """Reload a plugin.
         
@@ -355,18 +382,18 @@ class PluginRegistry:
             # Unload if currently loaded
             if plugin_name in self._loaded_plugins:
                 self.unregister_plugin(plugin_name)
-            
+
             # Load again
             plugin = self.load_plugin(plugin_name)
             return plugin is not None
-            
+
         except Exception as e:
             logger.error(f"Failed to reload plugin {plugin_name}: {e}")
             return False
 
 
 # Global plugin registry instance
-_global_registry: Optional[PluginRegistry] = None
+_global_registry: PluginRegistry | None = None
 
 
 def get_plugin_registry(container=None) -> PluginRegistry:

@@ -5,24 +5,22 @@ This module provides factory methods to create database instances based on
 configuration, enabling easy switching between different database backends.
 """
 
-from pathlib import Path
-from typing import Dict, Any, Type, Optional
 
-from jarvis.core.interfaces import IVectorDatabase, IGraphDatabase
+from jarvis.core.interfaces import IGraphDatabase, IVectorDatabase
 from jarvis.utils.config import JarvisSettings
-from jarvis.utils.logging import setup_logging
 from jarvis.utils.errors import ConfigurationError, ServiceError
+from jarvis.utils.logging import setup_logging
 
 logger = setup_logging(__name__)
 
 
 class DatabaseConfig:
     """Base configuration for database connections."""
-    
+
     def __init__(self, backend_type: str, **kwargs):
         self.backend_type = backend_type
         self.config = kwargs
-    
+
     def get(self, key: str, default=None):
         """Get configuration value."""
         return self.config.get(key, default)
@@ -30,13 +28,13 @@ class DatabaseConfig:
 
 class VectorDatabaseConfig(DatabaseConfig):
     """Configuration for vector database backends."""
-    
+
     @classmethod
     def from_settings(cls, settings: JarvisSettings) -> "VectorDatabaseConfig":
         """Create configuration from settings."""
         # Default to DuckDB for backward compatibility
         backend_type = getattr(settings, 'vector_db_backend', 'duckdb')
-        
+
         if backend_type == 'duckdb':
             return cls(
                 backend_type='duckdb',
@@ -64,13 +62,13 @@ class VectorDatabaseConfig(DatabaseConfig):
 
 class GraphDatabaseConfig(DatabaseConfig):
     """Configuration for graph database backends."""
-    
+
     @classmethod
     def from_settings(cls, settings: JarvisSettings) -> "GraphDatabaseConfig":
         """Create configuration from settings."""
         # Default to Neo4j for backward compatibility
         backend_type = getattr(settings, 'graph_db_backend', 'neo4j')
-        
+
         if backend_type == 'neo4j':
             return cls(
                 backend_type='neo4j',
@@ -93,23 +91,23 @@ class GraphDatabaseConfig(DatabaseConfig):
 
 class DatabaseFactory:
     """Factory for creating database instances based on configuration."""
-    
+
     # Registry of available database backends
-    _vector_backends: Dict[str, Type[IVectorDatabase]] = {}
-    _graph_backends: Dict[str, Type[IGraphDatabase]] = {}
-    
+    _vector_backends: dict[str, type[IVectorDatabase]] = {}
+    _graph_backends: dict[str, type[IGraphDatabase]] = {}
+
     @classmethod
-    def register_vector_backend(cls, backend_type: str, backend_class: Type[IVectorDatabase]):
+    def register_vector_backend(cls, backend_type: str, backend_class: type[IVectorDatabase]):
         """Register a vector database backend."""
         cls._vector_backends[backend_type] = backend_class
         logger.info(f"Registered vector database backend: {backend_type}")
-    
+
     @classmethod
-    def register_graph_backend(cls, backend_type: str, backend_class: Type[IGraphDatabase]):
+    def register_graph_backend(cls, backend_type: str, backend_class: type[IGraphDatabase]):
         """Register a graph database backend."""
         cls._graph_backends[backend_type] = backend_class
         logger.info(f"Registered graph database backend: {backend_type}")
-    
+
     @classmethod
     def create_vector_database(cls, config: VectorDatabaseConfig) -> IVectorDatabase:
         """Create a vector database instance based on configuration.
@@ -125,20 +123,20 @@ class DatabaseFactory:
             ServiceError: If database connection fails
         """
         backend_type = config.backend_type
-        
+
         if backend_type not in cls._vector_backends:
             available = list(cls._vector_backends.keys())
             raise ConfigurationError(f"Vector database backend '{backend_type}' not registered. Available: {available}")
-        
+
         backend_class = cls._vector_backends[backend_type]
-        
+
         try:
             logger.info(f"Creating vector database instance: {backend_type}")
             return backend_class.from_config(config)
         except Exception as e:
             logger.error(f"Failed to create vector database {backend_type}: {e}")
             raise ServiceError(f"Failed to create vector database {backend_type}: {e}") from e
-    
+
     @classmethod
     def create_graph_database(cls, config: GraphDatabaseConfig) -> IGraphDatabase:
         """Create a graph database instance based on configuration.
@@ -154,28 +152,28 @@ class DatabaseFactory:
             ServiceError: If database connection fails
         """
         backend_type = config.backend_type
-        
+
         if backend_type not in cls._graph_backends:
             available = list(cls._graph_backends.keys())
             raise ConfigurationError(f"Graph database backend '{backend_type}' not registered. Available: {available}")
-        
+
         backend_class = cls._graph_backends[backend_type]
-        
+
         try:
             logger.info(f"Creating graph database instance: {backend_type}")
             return backend_class.from_config(config)
         except Exception as e:
             logger.error(f"Failed to create graph database {backend_type}: {e}")
             raise ServiceError(f"Failed to create graph database {backend_type}: {e}") from e
-    
+
     @classmethod
-    def list_available_backends(cls) -> Dict[str, list]:
+    def list_available_backends(cls) -> dict[str, list]:
         """List all available database backends."""
         return {
             'vector': list(cls._vector_backends.keys()),
             'graph': list(cls._graph_backends.keys())
         }
-    
+
     @classmethod
     def validate_config(cls, config: DatabaseConfig) -> bool:
         """Validate database configuration without creating instance."""
@@ -199,7 +197,7 @@ def _register_builtin_backends():
         DatabaseFactory.register_vector_backend('duckdb', VectorDatabase)
     except ImportError:
         logger.warning("DuckDB vector backend not available")
-    
+
     try:
         from jarvis.services.graph.database import GraphDatabase
         DatabaseFactory.register_graph_backend('neo4j', GraphDatabase)

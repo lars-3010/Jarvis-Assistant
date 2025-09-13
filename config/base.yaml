@@ -1,0 +1,7 @@
+property_extraction:
+  frontmatter_tag_keys: ["tags", "keywords"]
+  frontmatter_alias_keys: ["aliases"]
+  inline_tag_prefixes: ["#"]
+  parse_frontmatter: true
+  parse_inline_tags: true
+

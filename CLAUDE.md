@@ -30,7 +30,7 @@ For spec-driven development, follow `.kiro/specs/` specific folder for the featu
 
 ## ADAPTIVE CONTEXT SYSTEM
 
-Load specific context based on task type using `.claude/` directory structure:
+Load specific context based on task type using `.claude/` directory structure, with guidelines consolidated under `ai-docs/guidelines/`:
 
 ### Available Agents (`.claude/agents/`)
 - **architecture-agent.md** - Senior System Architect for design enhancement and validation
@@ -43,6 +43,7 @@ Load specific context based on task type using `.claude/` directory structure:
 ### Available Commands (`.claude/commands/`)
 - **architecture-consult.md** - Architectural consultation and guidance
 - **architecture-review.md** - Architecture review and validation
+- **context.md** - Adaptive context loader (topics → key files)
 - **code-review.md** - Code review and quality assessment
 - **design.md** - Create system design specification
 - **dev-workflow.md** - Complete development workflow orchestration
@@ -52,9 +53,21 @@ Load specific context based on task type using `.claude/` directory structure:
 - **tasks.md** - Create implementation task breakdown
 - **validate.md** - Validation and testing workflows
 
-### Guidelines (`.claude/guidelines/`)
-- **architectural-guidelines.md** - SOLID principles, patterns, and architectural decisions
-- **coding-standards.md** - Code quality standards and best practices
+### Guidelines (`ai-docs/guidelines/`)
+- **architectural-guidelines.md** - Jarvis architecture, SOLID mapping, MCP layering, adaptive context loading
+- **coding-standards.md** - Jarvis‑specific coding rules for MCP tools, serializers, logging, tests
+
+### Using the Context Loader
+Load relevant files by topic with the `/context` command:
+- `/context architecture` — arc42, architecture map, key code entrypoints
+- `/context mcp-tools` — plugins, registry, server integration
+- `/context schemas` — schema manager, validator, registry, templates
+- `/context analytics` — analytics service, analyzers, cache
+- `/context events` — event bus and event integration
+- `/context config` — settings loader and YAML/ENV
+- `/context tests` — representative tests to guide changes
+
+See `.claude/commands/context.md` for the topic→files mapping.
 
 ### Templates (`.claude/templates/`)
 - **design-template.md** - System design specification template
@@ -65,11 +78,11 @@ Load specific context based on task type using `.claude/` directory structure:
 
 **For Development Tasks:**
 - Agent: `developer-agent.md` - Clean code with architectural compliance
-- Guidelines: `architectural-guidelines.md` + `coding-standards.md`
+- Guidelines: `ai-docs/guidelines/architectural-guidelines.md` + `ai-docs/guidelines/coding-standards.md`
 
 **For Architecture/Design:**
 - Agent: `design-agent.md` or `architecture-agent.md` - System design and validation
-- Guidelines: `architectural-guidelines.md`
+- Guidelines: `ai-docs/guidelines/architectural-guidelines.md`
 
 **For Requirements/Planning:**
 - Agent: `product-owner-agent.md` or `tasks-agent.md` - Business requirements and task planning

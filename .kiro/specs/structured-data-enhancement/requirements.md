@@ -62,11 +62,11 @@ This feature ensures backward compatibility while adding rich metadata, confiden
 
 #### Acceptance Criteria - Backward Compatibility
 
-1. WHEN existing clients request data THEN the system SHALL continue to provide text-based responses by default
-2. WHEN clients request structured data THEN the system SHALL provide enhanced JSON responses with opt-in mechanism
-3. WHEN migrating to structured responses THEN the system SHALL provide clear migration paths and compatibility guidelines
-4. WHEN supporting mixed usage THEN the system SHALL handle both text and structured response formats simultaneously
-5. IF response format conflicts occur THEN the system SHALL prioritize backward compatibility with clear error messages
+1. WHEN existing clients request data THEN the system SHALL continue to provide text-based responses by default (no breaking changes)
+2. WHEN clients request structured data via a `format` parameter (e.g., `format: "json"`) THEN the system SHALL provide enhanced JSON responses with standardized schemas
+3. WHEN emitting structured data THEN the system SHOULD prefer `TextContent` with JSON payload for maximal MCP client compatibility; `JsonContent` MAY be added later behind a capability check
+4. WHEN structured responses are enabled THEN the system SHALL include `execution_time_ms`, `cache_hit`, `freshness` (timestamp/hash), and `confidence` where applicable
+5. IF structured response generation partially fails THEN the system SHALL return partial results with an `errors` field and fall back to text where necessary
 
 ### Requirement 6: Performance and Scalability with Enhanced Data
 

@@ -4,14 +4,13 @@ Caching system for MCP tool operations.
 
 import hashlib
 import json
-import time
 import threading
+import time
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional, Tuple
-
-import mcp.types as types
+from typing import Any
 
 from jarvis.utils.logging import setup_logging
+from mcp import types
 
 logger = setup_logging(__name__)
 
@@ -29,7 +28,7 @@ class MCPToolCache:
         """
         self.max_size = max_size
         self.ttl_seconds = ttl_seconds
-        self._cache: OrderedDict[str, Tuple[List[types.TextContent | types.ImageContent | types.EmbeddedResource], float]] = OrderedDict()
+        self._cache: OrderedDict[str, tuple[list[types.TextContent | types.ImageContent | types.EmbeddedResource], float]] = OrderedDict()
         self._stats = {
             'hits': 0,
             'misses': 0,
@@ -40,14 +39,14 @@ class MCPToolCache:
 
         logger.info(f"MCP tool cache initialized: max_size={max_size}, ttl={ttl_seconds}s")
 
-    def _generate_key(self, tool_name: str, arguments: Dict[str, Any]) -> str:
+    def _generate_key(self, tool_name: str, arguments: dict[str, Any]) -> str:
         """
         Generate a cache key for a tool call.
         """
         key_data = {"tool": tool_name, "args": arguments}
         return hashlib.md5(json.dumps(key_data, sort_keys=True).encode('utf-8')).hexdigest()
 
-    def get(self, tool_name: str, arguments: Dict[str, Any]) -> Optional[List[types.TextContent | types.ImageContent | types.EmbeddedResource]]:
+    def get(self, tool_name: str, arguments: dict[str, Any]) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource] | None:
         """
         Retrieve cached results for a tool call.
         """
@@ -73,7 +72,7 @@ class MCPToolCache:
             logger.debug(f"MCP cache miss for tool {tool_name}")
             return None
 
-    def put(self, tool_name: str, arguments: Dict[str, Any], results: List[types.TextContent | types.ImageContent | types.EmbeddedResource]) -> None:
+    def put(self, tool_name: str, arguments: dict[str, Any], results: list[types.TextContent | types.ImageContent | types.EmbeddedResource]) -> None:
         """
         Store results of a tool call in the cache.
         """
@@ -100,7 +99,7 @@ class MCPToolCache:
             self._stats['total_requests'] = 0
             logger.info("MCP tool cache cleared.")
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """
         Get current cache statistics.
         """

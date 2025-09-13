@@ -1,0 +1,45 @@
+filters:
+  and:
+    - file.inFolder("Projects")
+formulas:
+  status_emoji: 'status == "done" ? "✅" : status == "active" ? "🔄" : status == "paused" ? "⏸️" : status == "planning" ? "📋" : "❓"'
+  priority_emoji: 'priority == "high" ? "🔴" : priority == "medium" ? "🟡" : "🟢"'
+  days_until_due: "due ? (due - today()) / (1000 * 60 * 60 * 24) : null"
+  is_overdue: due && due < today() && status != "done"
+  progress_bar: 'progress >= 90 ? "████████████" : progress >= 75 ? "█████████▒▒▒" : progress >= 50 ? "██████▒▒▒▒▒▒" : progress >= 25 ? "███▒▒▒▒▒▒▒▒▒" : progress > 0 ? "█▒▒▒▒▒▒▒▒▒▒▒" : "▒▒▒▒▒▒▒▒▒▒▒▒"'
+properties:
+  file.name:
+    displayName: Project
+  formula.status_emoji:
+    displayName: Status
+  formula.priority_emoji:
+    displayName: Priority
+  formula.progress_bar:
+    displayName: Progress
+  progress:
+    displayName: "%"
+  due:
+    displayName: Due
+  formula.days_until_due:
+    displayName: Days Left
+views:
+  - type: table
+    name: View
+    order:
+      - file.name
+      - status
+      - priority
+      - summary
+      - due to
+    sort:
+      - property: priority
+        direction: ASC
+      - property: status
+        direction: ASC
+      - property: "up::"
+        direction: ASC
+    columnSize:
+      file.name: 262
+      "note.up::": 97
+      note.similar: 153
+      note.leads to: 141

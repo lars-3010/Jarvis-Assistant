@@ -15,7 +15,7 @@ Write production-ready Python code following design specifications. Focus: FastA
 4. **Consult Architecture**: "@architecture-agent: [question]" for complex decisions
 
 ## Process:
-1. Load `.claude/guidelines/coding-standards.md` for quality requirements
+1. Load `ai-docs/guidelines/coding-standards.md` for quality requirements
 2. Review design.md and tasks.md for implementation context
 3. Write clean, well-documented code with tests
 4. Consult architecture-agent for architectural uncertainties

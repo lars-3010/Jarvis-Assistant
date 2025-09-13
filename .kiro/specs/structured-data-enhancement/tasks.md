@@ -8,6 +8,16 @@ The implementation prioritizes backward compatibility, performance, and comprehe
 
 ---
 
+## Phase 0: Schema & Serializer Core (NEW)
+
+- [ ] 0. Define shared response schemas and serializer helpers
+  - Create `src/jarvis/mcp/structured/models.py` with pydantic models for: semantic, keyword, graph, combined results; vault stats; health metrics
+  - Add central serializer functions to convert internal objects → schema dicts (`src/jarvis/mcp/structured/formatters.py`)
+  - Decide on `JsonContent` vs `TextContent(JSON)` and document the default strategy (default to TextContent(JSON) for MCP compatibility)
+  - Write unit tests for schema validation and serialization
+
+---
+
 ## Phase 1: Foundation and Data Models
 
 - [ ] 1. Create structured response data models

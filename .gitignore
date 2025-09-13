@@ -1,4 +1,5 @@
 .env
+config/.env
 node_modules/
 __pycache__/
 *.pyc
@@ -49,4 +50,6 @@ index.faiss
 *.cache
 .mypy_cache/
 
+resources/temporary/
 temporary/
+*.log

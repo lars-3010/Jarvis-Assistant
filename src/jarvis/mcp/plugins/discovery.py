@@ -5,26 +5,24 @@ This module provides automatic discovery and loading of MCP tool plugins
 from various sources including directories, Python modules, and packages.
 """
 
-import os
-import sys
 import importlib
 import importlib.util
 import inspect
-from pathlib import Path
-from typing import List, Dict, Type, Optional, Set, Any
 import pkgutil
+import sys
+from pathlib import Path
+from typing import Any
 
 from jarvis.mcp.plugins.base import MCPToolPlugin
 from jarvis.mcp.plugins.registry import PluginRegistry
 from jarvis.utils.logging import setup_logging
-from jarvis.utils.errors import PluginError
 
 logger = setup_logging(__name__)
 
 
 class PluginDiscovery:
     """Automatic discovery and loading of MCP tool plugins."""
-    
+
     def __init__(self, registry: PluginRegistry):
         """Initialize plugin discovery.
         
@@ -32,9 +30,9 @@ class PluginDiscovery:
             registry: Plugin registry to register discovered plugins
         """
         self.registry = registry
-        self._discovered_modules: Set[str] = set()
-        self._discovery_paths: List[Path] = []
-        
+        self._discovered_modules: set[str] = set()
+        self._discovery_paths: list[Path] = []
+
     def add_discovery_path(self, path: Path) -> None:
         """Add a path to search for plugins.
         
@@ -46,8 +44,8 @@ class PluginDiscovery:
             logger.info(f"Added plugin discovery path: {path}")
         else:
             logger.warning(f"Plugin discovery path does not exist: {path}")
-    
-    def discover_from_directory(self, directory: Path, recursive: bool = True) -> List[Type[MCPToolPlugin]]:
+
+    def discover_from_directory(self, directory: Path, recursive: bool = True) -> list[type[MCPToolPlugin]]:
         """Discover plugins from a directory.
         
         Args:
@@ -58,31 +56,31 @@ class PluginDiscovery:
             List of discovered plugin classes
         """
         discovered_plugins = []
-        
+
         if not directory.exists() or not directory.is_dir():
             logger.warning(f"Plugin directory does not exist: {directory}")
             return discovered_plugins
-        
+
         logger.info(f"Discovering plugins in directory: {directory}")
-        
+
         # Find Python files
         pattern = "**/*.py" if recursive else "*.py"
         python_files = list(directory.glob(pattern))
-        
+
         for py_file in python_files:
             if py_file.name.startswith('_'):
                 continue  # Skip private files
-            
+
             try:
                 plugins = self._load_plugins_from_file(py_file)
                 discovered_plugins.extend(plugins)
             except Exception as e:
                 logger.error(f"Failed to load plugins from {py_file}: {e}")
-        
+
         logger.info(f"Discovered {len(discovered_plugins)} plugins in {directory}")
         return discovered_plugins
-    
-    def discover_from_package(self, package_name: str) -> List[Type[MCPToolPlugin]]:
+
+    def discover_from_package(self, package_name: str) -> list[type[MCPToolPlugin]]:
         """Discover plugins from a Python package.
         
         Args:
@@ -92,10 +90,10 @@ class PluginDiscovery:
             List of discovered plugin classes
         """
         discovered_plugins = []
-        
+
         try:
             package = importlib.import_module(package_name)
-            
+
             # If package has __path__, it's a package directory
             if hasattr(package, '__path__'):
                 for importer, modname, ispkg in pkgutil.iter_modules(package.__path__):
@@ -110,15 +108,15 @@ class PluginDiscovery:
                 # Single module
                 plugins = self._extract_plugins_from_module(package)
                 discovered_plugins.extend(plugins)
-            
+
             logger.info(f"Discovered {len(discovered_plugins)} plugins in package {package_name}")
-            
+
         except ImportError as e:
             logger.error(f"Failed to import package {package_name}: {e}")
-        
+
         return discovered_plugins
-    
-    def discover_builtin_plugins(self) -> List[Type[MCPToolPlugin]]:
+
+    def discover_builtin_plugins(self) -> list[type[MCPToolPlugin]]:
         """Discover built-in plugins from the tools package.
         
         Returns:
@@ -131,8 +129,8 @@ class PluginDiscovery:
         except ImportError:
             logger.warning("Built-in plugins package not found")
             return []
-    
-    def _load_plugins_from_file(self, file_path: Path) -> List[Type[MCPToolPlugin]]:
+
+    def _load_plugins_from_file(self, file_path: Path) -> list[type[MCPToolPlugin]]:
         """Load plugins from a Python file.
         
         Args:
@@ -142,35 +140,35 @@ class PluginDiscovery:
             List of plugin classes found in the file
         """
         module_name = file_path.stem
-        
+
         # Skip if already loaded
         if str(file_path) in self._discovered_modules:
             return []
-        
+
         try:
             # Load module from file
             spec = importlib.util.spec_from_file_location(module_name, file_path)
             if spec is None or spec.loader is None:
                 logger.error(f"Could not create module spec for {file_path}")
                 return []
-            
+
             module = importlib.util.module_from_spec(spec)
-            
+
             # Add to sys.modules to handle imports within the module
             sys.modules[module_name] = module
             spec.loader.exec_module(module)
-            
+
             # Extract plugins
             plugins = self._extract_plugins_from_module(module)
             self._discovered_modules.add(str(file_path))
-            
+
             return plugins
-            
+
         except Exception as e:
             logger.error(f"Failed to load module from {file_path}: {e}")
             return []
-    
-    def _extract_plugins_from_module(self, module) -> List[Type[MCPToolPlugin]]:
+
+    def _extract_plugins_from_module(self, module) -> list[type[MCPToolPlugin]]:
         """Extract plugin classes from a loaded module.
         
         Args:
@@ -180,23 +178,23 @@ class PluginDiscovery:
             List of plugin classes found in the module
         """
         plugins = []
-        
+
         for name, obj in inspect.getmembers(module, inspect.isclass):
-            if (obj != MCPToolPlugin and 
-                issubclass(obj, MCPToolPlugin) and 
+            if (obj != MCPToolPlugin and
+                issubclass(obj, MCPToolPlugin) and
                 not inspect.isabstract(obj)):
-                
+
                 # Check if class is defined in this module (not imported)
                 if obj.__module__ == module.__name__:
                     plugins.append(obj)
                     logger.debug(f"Found plugin class: {obj.__name__}")
-        
+
         return plugins
-    
-    def auto_discover(self, 
-                     search_directories: Optional[List[Path]] = None,
-                     search_packages: Optional[List[str]] = None,
-                     include_builtin: bool = True) -> Dict[str, int]:
+
+    def auto_discover(self,
+                     search_directories: list[Path] | None = None,
+                     search_packages: list[str] | None = None,
+                     include_builtin: bool = True) -> dict[str, int]:
         """Automatically discover and register plugins from multiple sources.
         
         Args:
@@ -214,9 +212,9 @@ class PluginDiscovery:
             "plugins_registered": 0,
             "errors": 0
         }
-        
+
         discovered_plugins = []
-        
+
         # Discover from directories
         directories_to_search = search_directories or self._discovery_paths
         for directory in directories_to_search:
@@ -227,7 +225,7 @@ class PluginDiscovery:
             except Exception as e:
                 logger.error(f"Error discovering plugins in {directory}: {e}")
                 stats["errors"] += 1
-        
+
         # Discover from packages
         for package_name in search_packages or []:
             try:
@@ -237,7 +235,7 @@ class PluginDiscovery:
             except Exception as e:
                 logger.error(f"Error discovering plugins in package {package_name}: {e}")
                 stats["errors"] += 1
-        
+
         # Discover built-in plugins
         if include_builtin:
             try:
@@ -246,9 +244,9 @@ class PluginDiscovery:
             except Exception as e:
                 logger.error(f"Error discovering built-in plugins: {e}")
                 stats["errors"] += 1
-        
+
         stats["plugins_discovered"] = len(discovered_plugins)
-        
+
         # Register discovered plugins
         for plugin_class in discovered_plugins:
             try:
@@ -259,14 +257,14 @@ class PluginDiscovery:
             except Exception as e:
                 logger.error(f"Failed to register plugin {plugin_class.__name__}: {e}")
                 stats["errors"] += 1
-        
+
         logger.info(f"Auto-discovery complete: {stats}")
         return stats
-    
-    def discover_and_load(self, 
-                         search_directories: Optional[List[Path]] = None,
-                         search_packages: Optional[List[str]] = None,
-                         include_builtin: bool = True) -> Dict[str, Any]:
+
+    def discover_and_load(self,
+                         search_directories: list[Path] | None = None,
+                         search_packages: list[str] | None = None,
+                         include_builtin: bool = True) -> dict[str, Any]:
         """Discover plugins and immediately load them.
         
         Args:
@@ -283,10 +281,10 @@ class PluginDiscovery:
             search_packages=search_packages,
             include_builtin=include_builtin
         )
-        
+
         # Then load all registered plugins
         load_stats = self.registry.load_all_plugins()
-        
+
         return {
             "discovery": discovery_stats,
             "loading": {
@@ -296,8 +294,8 @@ class PluginDiscovery:
                 "load_results": load_stats
             }
         }
-    
-    def hot_reload_directory(self, directory: Path) -> Dict[str, bool]:
+
+    def hot_reload_directory(self, directory: Path) -> dict[str, bool]:
         """Hot reload plugins from a directory (for development).
         
         Args:
@@ -307,16 +305,16 @@ class PluginDiscovery:
             Dictionary mapping plugin names to reload success status
         """
         results = {}
-        
+
         # Clear discovered modules for this directory
         modules_to_remove = []
         for module_path in self._discovered_modules:
             if Path(module_path).parent == directory:
                 modules_to_remove.append(module_path)
-        
+
         for module_path in modules_to_remove:
             self._discovered_modules.remove(module_path)
-        
+
         # Rediscover and reload
         try:
             plugins = self.discover_from_directory(directory)
@@ -324,13 +322,13 @@ class PluginDiscovery:
                 plugin_name = plugin_class.__name__
                 success = self.registry.reload_plugin(plugin_name)
                 results[plugin_name] = success
-                
+
         except Exception as e:
             logger.error(f"Hot reload failed for directory {directory}: {e}")
-        
+
         return results
-    
-    def get_discovery_info(self) -> Dict[str, Any]:
+
+    def get_discovery_info(self) -> dict[str, Any]:
         """Get information about the discovery system.
         
         Returns:

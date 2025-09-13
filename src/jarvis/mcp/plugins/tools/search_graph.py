@@ -5,10 +5,16 @@ This plugin provides graph-based search capabilities for exploring
 relationships between notes in the knowledge graph.
 """
 
+import json
+import time
 from typing import Any
+from uuid import uuid4
 
 from jarvis.core.interfaces import IGraphDatabase, IVaultReader, IVectorSearcher
 from jarvis.mcp.plugins.base import GraphPlugin
+from jarvis.mcp.structured import graph_search_to_json, semantic_fallback_to_json
+
+# Lazy import to avoid circular dependencies
 from jarvis.utils.errors import PluginError, ServiceError
 from jarvis.utils.logging import setup_logging
 from mcp import types
@@ -56,33 +62,41 @@ class SearchGraphPlugin(GraphPlugin):
         return [IGraphDatabase]
 
     def get_tool_definition(self) -> types.Tool:
-        """Get the MCP tool definition."""
+        """Get the MCP tool definition with standardized schema."""
+        # Lazy import to avoid circular dependencies
+        from jarvis.mcp.schemas import create_graph_schema
+
+        # Create standardized graph schema
+        input_schema = create_graph_schema(
+            enable_depth_control=True,
+            max_depth=MAX_DEPTH
+        )
+
+        # Customize query description for this specific tool
+        input_schema["properties"]["query_note_path"]["description"] = (
+            "The path to the note to use as the center of the search, or keywords to search for relevant notes"
+        )
+
+        # Keep `format` field but restrict to JSON for uniformity
+        if "format" in input_schema["properties"]:
+            input_schema["properties"]["format"] = {
+                "type": "string",
+                "enum": ["json"],
+                "default": "json",
+                "description": "Response format"
+            }
+
         return types.Tool(
             name=self.name,
             description=self.description,
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "query_note_path": {
-                        "type": "string",
-                        "description": "The path to the note to use as the center of the search, or keywords to search for relevant notes"
-                    },
-                    "depth": {
-                        "type": "integer",
-                        "description": "How many relationship levels to traverse",
-                        "default": 1,
-                        "minimum": 1,
-                        "maximum": MAX_DEPTH
-                    }
-                },
-                "required": ["query_note_path"]
-            }
+            inputSchema=input_schema
         )
 
     async def execute(self, arguments: dict[str, Any]) -> list[types.TextContent]:
         """Execute graph search with enhanced keyword search capability."""
         query_note_path = arguments.get("query_note_path", "").strip()
         depth = arguments.get("depth", 1)
+        start_time = time.time()
 
         # Validate input
         validation_error = self._validate_input(query_note_path, depth)
@@ -99,12 +113,15 @@ class SearchGraphPlugin(GraphPlugin):
             # Check if graph database is available and healthy
             if not graph_database or not graph_database.is_healthy:
                 logger.warning("Graph search unavailable, falling back to semantic search")
-                return await self._fallback_to_semantic_search(query_note_path)
+                payload = await self._fallback_to_semantic_search_structured(query_note_path, start_time)
+                return [types.TextContent(type="text", text=json.dumps(payload, indent=2))]
 
             logger.info(f"Graph search: Starting search for query_note_path: '{query_note_path}' with depth: {depth}")
 
             # Try exact path first, then keyword search
-            return await self._perform_graph_search(graph_database, query_note_path, depth)
+            payload = await self._perform_graph_search_structured(graph_database, query_note_path, depth, start_time)
+            payload["correlation_id"] = str(uuid4())
+            return [types.TextContent(type="text", text=json.dumps(payload, indent=2))]
 
         except ServiceError as e:
             logger.error(f"Error in graph search: {e}")
@@ -115,6 +132,79 @@ class SearchGraphPlugin(GraphPlugin):
         except Exception as e:
             logger.error(f"Unexpected error in graph search: {e}")
             raise PluginError(f"Graph search failed: {e!s}") from e
+
+    async def _perform_graph_search_structured(
+        self, graph_database, query_note_path: str, depth: int, start_time: float
+    ) -> dict:
+        """Structured variant of graph search for JSON output."""
+        logger.info(f"🔍 [JSON] Starting graph search for: '{query_note_path}' (depth: {depth})")
+
+        # Phase 1: exact path
+        try:
+            graph = graph_database.get_note_graph(query_note_path, depth)
+            if graph and graph.get("nodes"):
+                duration_ms = int((time.time() - start_time) * 1000)
+                return graph_search_to_json(
+                    query=query_note_path,
+                    depth=depth,
+                    graphs=[(query_note_path, graph)],
+                    mode="exact",
+                    execution_time_ms=duration_ms,
+                )
+        except Exception as e:
+            logger.info(f"⚠️ [JSON] Exact path search failed: {e}")
+
+        # Phase 2: keyword discovery
+        note_paths = await self._find_notes_by_keywords(query_note_path)
+        if not note_paths:
+            duration_ms = int((time.time() - start_time) * 1000)
+            return graph_search_to_json(
+                query=query_note_path,
+                depth=depth,
+                graphs=[],
+                mode="keyword_fallback",
+                execution_time_ms=duration_ms,
+                discovered_notes=[],
+            )
+
+        all_graphs: list[tuple[str, dict]] = []
+        for note_path in note_paths[:MAX_DISCOVERED_NOTES]:
+            try:
+                g = graph_database.get_note_graph(note_path, depth)
+                if g and g.get("nodes"):
+                    all_graphs.append((note_path, g))
+            except Exception as e:
+                logger.warning(f"⚠️ [JSON] Failed to build graph for '{note_path}': {e}")
+
+        duration_ms = int((time.time() - start_time) * 1000)
+        return graph_search_to_json(
+            query=query_note_path,
+            depth=depth,
+            graphs=all_graphs,
+            mode="keyword_fallback",
+            execution_time_ms=duration_ms,
+            discovered_notes=note_paths,
+        )
+
+    async def _fallback_to_semantic_search_structured(self, query_note_path: str, start_time: float) -> dict:
+        """Structured JSON for semantic fallback when graph unavailable."""
+        try:
+            searcher = self.container.get(IVectorSearcher) if self.container else None
+            results = []
+            if searcher:
+                results = searcher.search(query=query_note_path, top_k=FALLBACK_LIMIT)
+            duration_ms = int((time.time() - start_time) * 1000)
+            return semantic_fallback_to_json(query_note_path, results, duration_ms)
+        except Exception as e:
+            logger.error(f"Semantic fallback structured failed: {e}")
+            duration_ms = int((time.time() - start_time) * 1000)
+            return {
+                "query": query_note_path,
+                "mode": "fallback_semantic",
+                "execution_time_ms": duration_ms,
+                "error": str(e),
+                "results": [],
+            }
 
     def _validate_input(self, query_note_path: str, depth: int) -> list[types.TextContent] | None:
         """Validate input parameters."""
@@ -135,7 +225,7 @@ class SearchGraphPlugin(GraphPlugin):
     async def _perform_graph_search(self, graph_database, query_note_path: str, depth: int) -> list[types.TextContent]:
         """Perform graph search with exact path and keyword fallback."""
         logger.info(f"🔍 Starting graph search for: '{query_note_path}' (depth: {depth})")
-        
+
         # Try exact path first (for backward compatibility)
         try:
             logger.info(f"📍 Phase 1: Attempting exact path search for: '{query_note_path}'")
@@ -192,7 +282,7 @@ class SearchGraphPlugin(GraphPlugin):
     async def _find_notes_by_keywords(self, query: str) -> list[str]:
         """Find notes matching keywords using semantic and keyword search."""
         logger.info(f"🔍 Keyword search phase started for query: '{query}'")
-        
+
         searcher = self.container.get(IVectorSearcher) if self.container else None
         vault_reader = self.container.get(IVaultReader) if self.container else None
 
@@ -232,7 +322,7 @@ class SearchGraphPlugin(GraphPlugin):
                     paths = [result.path for result in semantic_results]
                     scores = [f"{result.similarity_score:.3f}" for result in semantic_results]
                     logger.info(f"🧠 Semantic search found {len(semantic_results)} notes:")
-                    for i, (path, score) in enumerate(zip(paths, scores), 1):
+                    for i, (path, score) in enumerate(zip(paths, scores, strict=False), 1):
                         logger.info(f"  {i}. {path} (score: {score})")
                     return paths
                 else:

@@ -41,15 +41,15 @@ uv run jarvis --help
 
 Jarvis Assistant uses Pydantic Settings with optional .env file support. Configuration can be set via:
 1. **Environment variables** (with `JARVIS_` prefix)
-2. **Optional .env file** in project root
+2. **Optional config/.env file** in project root
 3. **Command-line arguments** for vault path
 
 Copy the example configuration:
 ```bash
-cp resources/config/.env.example .env
+cp config/.env.example config/.env
 ```
 
-Edit `.env` for your development setup:
+Edit `config/.env` for your development setup:
 
 ```env
 # Development Settings
@@ -612,4 +612,4 @@ echo "Development setup complete!"
 - [Testing Strategy](testing-strategy.md) - Comprehensive testing approach
 - [Code Standards](code-standards.md) - Detailed coding guidelines
 - [Contribution Guide](contribution-guide.md) - How to contribute to the project
-- [Architecture Reference](../02-system-design/component-interaction.md) - System design details
+- [Architecture Reference](../02-architecture/component-interaction.md) - System design details

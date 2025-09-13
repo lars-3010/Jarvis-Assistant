@@ -7,22 +7,22 @@ service management, and system architecture patterns.
 
 from .container import ServiceContainer
 from .interfaces import (
-    IVectorDatabase,
     IGraphDatabase,
+    IHealthChecker,
+    IMetrics,
     IVaultReader,
+    IVectorDatabase,
     IVectorEncoder,
     IVectorSearcher,
-    IHealthChecker,
-    IMetrics
 )
 
 __all__ = [
-    "ServiceContainer",
-    "IVectorDatabase",
-    "IGraphDatabase", 
+    "IGraphDatabase",
+    "IHealthChecker",
+    "IMetrics",
     "IVaultReader",
+    "IVectorDatabase",
     "IVectorEncoder",
     "IVectorSearcher",
-    "IHealthChecker",
-    "IMetrics"
+    "ServiceContainer"
 ]

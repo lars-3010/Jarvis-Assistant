@@ -2,29 +2,18 @@
 
 Welcome to the comprehensive documentation for Jarvis Assistant - an MCP server providing semantic search and graph analysis tools for AI systems to intelligently discover knowledge in Obsidian vaults.
 
-## Documentation Map
+## Documentation Map (Consolidated)
 
-### 📋 01-overview/ - Understanding the Project
-Get oriented with what Jarvis Assistant is and how it works.
+### 📋 Overview
+- **[Project Overview](01-overview/project-overview.md)** — Mission, scope, status
+- **[Key Concepts](01-overview/key-concepts.md)** — Terminology and mental models
+- Deprecated overview pages (see notes inside): `01-overview/architecture.md`
 
-- **[project-overview.md](01-overview/project-overview.md)** - Mission, problem statement, solution approach, and current status
-- **[architecture.md](01-overview/architecture.md)** - High-level system design, components, and technology choices
-- **[key-concepts.md](01-overview/key-concepts.md)** - Core terminology and mental models for understanding the system
-- **[architectural-roadmap.md](01-overview/architectural-roadmap.md)** - Technical infrastructure improvements and modularity roadmap
-- **[ai-implementation-roadmap.md](01-overview/ai-implementation-roadmap.md)** - Comprehensive plan for AI agents and GraphRAG capabilities
-
-### 🔧 02-system-design/ - How It Works
-Deep dive into the technical implementation and system internals.
-
-- **[system-overview.md](02-system-design/system-overview.md)** - High-level architecture and design philosophy
-- **[architecture-decisions.md](02-system-design/architecture-decisions.md)** - Key technical decisions and their rationale (ADRs)
-- **[extension-architecture.md](02-system-design/extension-architecture.md)** - ⭐ Plugin system design and implementation *(New in Phase 0)*
-- **[deployment-patterns.md](02-system-design/deployment-patterns.md)** - Different deployment scenarios and configurations
-- **[data-flow.md](02-system-design/data-flow.md)** - Request-to-response journey and processing pipeline
-- **[component-interaction.md](02-system-design/component-interaction.md)** - How MCP server, databases, and services interact
-- **[semantic-search-design.md](02-system-design/semantic-search-design.md)** - Vector search architecture and embeddings
-- **[neo4j-schema.md](02-system-design/neo4j-schema.md)** - Graph database structure and relationships
-- **[mcp-implementation-details.md](02-system-design/mcp-implementation-details.md)** - MCP protocol implementation details
+### 🔧 Architecture & System Design (Consolidated)
+- **[arc42 (primary)](architecture/arc42.md)** — Architecture, building blocks, runtime, deployment, SOLID mapping
+- **[Architecture Map](architecture/architecture-map.md)** — Visual high-level map
+- ADRs: `09-adr/0001-di-in-mcp-server.md`, `09-adr/0002-structured-responses-module.md`
+- Deprecated pages (see notes inside): `02-architecture/architecture.md`
 
 ### 🚀 03-getting-started/ - Getting Up and Running
 Progressive setup guides from quickstart to advanced configuration.
@@ -88,21 +77,21 @@ Want to understand the technical implementation?
 
 1. **[Key Concepts](01-overview/key-concepts.md)** - Learn the terminology and mental models
 2. **[System Architecture](01-overview/architecture.md)** - Understand the overall design
-3. **[Data Flow](02-system-design/data-flow.md)** - See how requests become responses
+3. **[Architecture](architecture/arc42.md)** - See how the system is structured
 
 ### 💻 Developer or Contributor
 Want to modify, extend, or contribute to the project?
 
 1. **[Developer Guide](05-development/developer-guide.md)** - Set up your development environment
-2. **[System Design](02-system-design/component-interaction.md)** - Understand component interactions
+2. **[Architecture](architecture/arc42.md)** - Understand component interactions
 3. **[Code Standards](05-development/code-standards.md)** - Follow project conventions
 4. **[AI Implementation Roadmap](01-overview/ai-implementation-roadmap.md)** - Future AI capabilities and implementation plan
 
 ### 🤖 AI System or Tool
 Need structured information for automated processing?
 
-1. **[System Overview](02-system-design/system-overview.md)** - High-level architecture and capabilities
-2. **[Component Interaction](02-system-design/component-interaction.md)** - Detailed system architecture
+1. **[Architecture Overview](architecture/arc42.md)** - High-level architecture and capabilities
+2. **[Component Interaction](02-architecture/component-interaction.md)** - Detailed system architecture
 3. **[API Reference](06-reference/api-reference.md)** - Complete tool specifications
 4. **[Configuration Reference](06-reference/configuration-reference.md)** - All configuration options
 

@@ -6,21 +6,17 @@ to events, enabling loose coupling and reactive behavior across services.
 """
 
 import asyncio
+import json
 import time
 import uuid
-from typing import Dict, List, Optional, Any, Callable, Set, Union, Type
+from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from abc import ABC, abstractmethod
-import json
-import pickle
-from datetime import datetime, timezone
-import threading
-from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 
-from jarvis.utils.logging import setup_logging
-from jarvis.utils.errors import EventError, SerializationError
 from jarvis.core.interfaces import IMetrics
+from jarvis.utils.logging import setup_logging
 
 logger = setup_logging(__name__)
 
@@ -37,17 +33,17 @@ class EventPriority(Enum):
 class Event:
     """Represents an event in the system."""
     event_type: str
-    data: Dict[str, Any]
+    data: dict[str, Any]
     event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     timestamp: float = field(default_factory=time.time)
-    source: Optional[str] = None
+    source: str | None = None
     priority: EventPriority = EventPriority.NORMAL
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    correlation_id: Optional[str] = None
-    causation_id: Optional[str] = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    correlation_id: str | None = None
+    causation_id: str | None = None
     version: int = 1
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert event to dictionary."""
         return {
             'event_id': self.event_id,
@@ -61,9 +57,9 @@ class Event:
             'causation_id': self.causation_id,
             'version': self.version
         }
-    
+
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Event':
+    def from_dict(cls, data: dict[str, Any]) -> 'Event':
         """Create event from dictionary."""
         return cls(
             event_id=data['event_id'],
@@ -77,11 +73,11 @@ class Event:
             causation_id=data.get('causation_id'),
             version=data.get('version', 1)
         )
-    
+
     def to_json(self) -> str:
         """Convert event to JSON string."""
         return json.dumps(self.to_dict(), default=str)
-    
+
     @classmethod
     def from_json(cls, json_str: str) -> 'Event':
         """Create event from JSON string."""
@@ -91,38 +87,38 @@ class Event:
 
 class EventFilter:
     """Filter for event subscriptions."""
-    
+
     def __init__(
         self,
-        event_types: Optional[Set[str]] = None,
-        sources: Optional[Set[str]] = None,
-        min_priority: Optional[EventPriority] = None,
-        metadata_filters: Optional[Dict[str, Any]] = None
+        event_types: set[str] | None = None,
+        sources: set[str] | None = None,
+        min_priority: EventPriority | None = None,
+        metadata_filters: dict[str, Any] | None = None
     ):
         self.event_types = event_types or set()
         self.sources = sources or set()
         self.min_priority = min_priority
         self.metadata_filters = metadata_filters or {}
-    
+
     def matches(self, event: Event) -> bool:
         """Check if event matches filter criteria."""
         # Check event type
         if self.event_types and event.event_type not in self.event_types:
             return False
-        
+
         # Check source
         if self.sources and event.source not in self.sources:
             return False
-        
+
         # Check priority
         if self.min_priority and event.priority.value < self.min_priority.value:
             return False
-        
+
         # Check metadata filters
         for key, value in self.metadata_filters.items():
             if key not in event.metadata or event.metadata[key] != value:
                 return False
-        
+
         return True
 
 
@@ -137,7 +133,7 @@ class EventSubscription:
     retry_delay: float = 1.0
     dead_letter_enabled: bool = True
     created_at: float = field(default_factory=time.time)
-    
+
     async def handle_event(self, event: Event) -> bool:
         """Handle an event with retry logic.
         
@@ -146,7 +142,7 @@ class EventSubscription:
         """
         retries = 0
         last_error = None
-        
+
         while retries <= self.max_retries:
             try:
                 if self.is_async:
@@ -156,104 +152,104 @@ class EventSubscription:
                         await asyncio.get_event_loop().run_in_executor(None, self.handler, event)
                 else:
                     self.handler(event)
-                
+
                 return True
-                
+
             except Exception as e:
                 last_error = e
                 retries += 1
-                
+
                 if retries <= self.max_retries:
                     logger.warning(f"Event handler failed (attempt {retries}): {e}")
                     await asyncio.sleep(self.retry_delay * retries)  # Exponential backoff
                 else:
                     logger.error(f"Event handler failed after {self.max_retries} retries: {e}")
-        
+
         return False
 
 
 class IEventStore(ABC):
     """Abstract interface for event storage."""
-    
+
     @abstractmethod
     async def store_event(self, event: Event) -> bool:
         """Store an event."""
         pass
-    
+
     @abstractmethod
     async def get_events(
         self,
-        event_types: Optional[Set[str]] = None,
-        from_timestamp: Optional[float] = None,
-        to_timestamp: Optional[float] = None,
-        limit: Optional[int] = None
-    ) -> List[Event]:
+        event_types: set[str] | None = None,
+        from_timestamp: float | None = None,
+        to_timestamp: float | None = None,
+        limit: int | None = None
+    ) -> list[Event]:
         """Retrieve events."""
         pass
-    
+
     @abstractmethod
-    async def get_event_by_id(self, event_id: str) -> Optional[Event]:
+    async def get_event_by_id(self, event_id: str) -> Event | None:
         """Get a specific event by ID."""
         pass
 
 
 class MemoryEventStore(IEventStore):
     """In-memory event store implementation."""
-    
+
     def __init__(self, max_events: int = 10000):
         self.max_events = max_events
-        self._events: List[Event] = []
-        self._events_by_id: Dict[str, Event] = {}
+        self._events: list[Event] = []
+        self._events_by_id: dict[str, Event] = {}
         self._lock = asyncio.Lock()
-    
+
     async def store_event(self, event: Event) -> bool:
         """Store an event in memory."""
         async with self._lock:
             try:
                 self._events.append(event)
                 self._events_by_id[event.event_id] = event
-                
+
                 # Maintain size limit
                 if len(self._events) > self.max_events:
                     oldest_event = self._events.pop(0)
                     del self._events_by_id[oldest_event.event_id]
-                
+
                 return True
             except Exception as e:
                 logger.error(f"Failed to store event {event.event_id}: {e}")
                 return False
-    
+
     async def get_events(
         self,
-        event_types: Optional[Set[str]] = None,
-        from_timestamp: Optional[float] = None,
-        to_timestamp: Optional[float] = None,
-        limit: Optional[int] = None
-    ) -> List[Event]:
+        event_types: set[str] | None = None,
+        from_timestamp: float | None = None,
+        to_timestamp: float | None = None,
+        limit: int | None = None
+    ) -> list[Event]:
         """Retrieve events from memory."""
         async with self._lock:
             events = self._events.copy()
-        
+
         # Apply filters
         if event_types:
             events = [e for e in events if e.event_type in event_types]
-        
+
         if from_timestamp:
             events = [e for e in events if e.timestamp >= from_timestamp]
-        
+
         if to_timestamp:
             events = [e for e in events if e.timestamp <= to_timestamp]
-        
+
         # Sort by timestamp
         events.sort(key=lambda e: e.timestamp)
-        
+
         # Apply limit
         if limit:
             events = events[:limit]
-        
+
         return events
-    
-    async def get_event_by_id(self, event_id: str) -> Optional[Event]:
+
+    async def get_event_by_id(self, event_id: str) -> Event | None:
         """Get a specific event by ID."""
         async with self._lock:
             return self._events_by_id.get(event_id)
@@ -261,11 +257,11 @@ class MemoryEventStore(IEventStore):
 
 class EventBus:
     """Central event bus for publishing and subscribing to events."""
-    
+
     def __init__(
         self,
-        event_store: Optional[IEventStore] = None,
-        metrics: Optional[IMetrics] = None,
+        event_store: IEventStore | None = None,
+        metrics: IMetrics | None = None,
         max_concurrent_handlers: int = 100
     ):
         """Initialize the event bus.
@@ -278,52 +274,59 @@ class EventBus:
         self.event_store = event_store or MemoryEventStore()
         self.metrics = metrics
         self.max_concurrent_handlers = max_concurrent_handlers
-        
-        self._subscriptions: Dict[str, EventSubscription] = {}
-        self._subscriptions_by_type: Dict[str, Set[str]] = {}
+
+        self._subscriptions: dict[str, EventSubscription] = {}
+        self._subscriptions_by_type: dict[str, set[str]] = {}
         self._event_queue: asyncio.Queue = asyncio.Queue()
         self._dead_letter_queue: asyncio.Queue = asyncio.Queue()
-        self._processor_task: Optional[asyncio.Task] = None
-        self._dead_letter_task: Optional[asyncio.Task] = None
+        self._processor_task: asyncio.Task | None = None
+        self._dead_letter_task: asyncio.Task | None = None
         self._running = False
         self._semaphore = asyncio.Semaphore(max_concurrent_handlers)
-        
+        self._loop: asyncio.AbstractEventLoop | None = None
+
         logger.info("Event bus initialized")
-    
+
     async def start(self):
         """Start the event bus."""
         if self._running:
             return
-        
+
         self._running = True
+        # Capture the running loop for thread-safe publishing
+        try:
+            self._loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._loop = None
         self._processor_task = asyncio.create_task(self._process_events())
         self._dead_letter_task = asyncio.create_task(self._process_dead_letters())
-        
+
         logger.info("Event bus started")
-    
+
     async def stop(self):
         """Stop the event bus."""
         if not self._running:
             return
-        
+
         self._running = False
-        
+
         if self._processor_task:
             self._processor_task.cancel()
             try:
                 await self._processor_task
             except asyncio.CancelledError:
                 pass
-        
+
         if self._dead_letter_task:
             self._dead_letter_task.cancel()
             try:
                 await self._dead_letter_task
             except asyncio.CancelledError:
                 pass
-        
+
         logger.info("Event bus stopped")
-    
+        self._loop = None
+
     async def publish(self, event: Event) -> bool:
         """Publish an event to the bus.
         
@@ -336,15 +339,15 @@ class EventBus:
         if not self._running:
             logger.warning("Event bus not running, cannot publish event")
             return False
-        
+
         try:
             # Store event if event store is configured
             if self.event_store:
                 await self.event_store.store_event(event)
-            
+
             # Add to processing queue
             await self._event_queue.put(event)
-            
+
             # Record metrics
             if self.metrics:
                 self.metrics.record_counter(
@@ -354,18 +357,18 @@ class EventBus:
                         "priority": event.priority.name
                     }
                 )
-            
+
             logger.debug(f"Published event {event.event_id} of type {event.event_type}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to publish event {event.event_id}: {e}")
             return False
-    
+
     def subscribe(
         self,
         handler: Callable[[Event], Any],
-        event_filter: Optional[EventFilter] = None,
+        event_filter: EventFilter | None = None,
         is_async: bool = True,
         max_retries: int = 3,
         retry_delay: float = 1.0
@@ -384,7 +387,7 @@ class EventBus:
         """
         subscription_id = str(uuid.uuid4())
         filter = event_filter or EventFilter()
-        
+
         subscription = EventSubscription(
             subscription_id=subscription_id,
             handler=handler,
@@ -393,18 +396,18 @@ class EventBus:
             max_retries=max_retries,
             retry_delay=retry_delay
         )
-        
+
         self._subscriptions[subscription_id] = subscription
-        
+
         # Index by event types for efficient lookup
         for event_type in filter.event_types or ["*"]:  # "*" means all types
             if event_type not in self._subscriptions_by_type:
                 self._subscriptions_by_type[event_type] = set()
             self._subscriptions_by_type[event_type].add(subscription_id)
-        
+
         logger.debug(f"Added subscription {subscription_id}")
         return subscription_id
-    
+
     def unsubscribe(self, subscription_id: str) -> bool:
         """Unsubscribe from events.
         
@@ -416,36 +419,36 @@ class EventBus:
         """
         if subscription_id not in self._subscriptions:
             return False
-        
+
         subscription = self._subscriptions[subscription_id]
-        
+
         # Remove from type index
         for event_type in subscription.filter.event_types or ["*"]:
             if event_type in self._subscriptions_by_type:
                 self._subscriptions_by_type[event_type].discard(subscription_id)
                 if not self._subscriptions_by_type[event_type]:
                     del self._subscriptions_by_type[event_type]
-        
+
         del self._subscriptions[subscription_id]
-        
+
         logger.debug(f"Removed subscription {subscription_id}")
         return True
-    
-    def get_subscriptions(self) -> List[str]:
+
+    def get_subscriptions(self) -> list[str]:
         """Get all subscription IDs.
         
         Returns:
             List of subscription IDs
         """
         return list(self._subscriptions.keys())
-    
+
     async def get_events(
         self,
-        event_types: Optional[Set[str]] = None,
-        from_timestamp: Optional[float] = None,
-        to_timestamp: Optional[float] = None,
-        limit: Optional[int] = None
-    ) -> List[Event]:
+        event_types: set[str] | None = None,
+        from_timestamp: float | None = None,
+        to_timestamp: float | None = None,
+        limit: int | None = None
+    ) -> list[Event]:
         """Get stored events.
         
         Args:
@@ -459,15 +462,15 @@ class EventBus:
         """
         if not self.event_store:
             return []
-        
+
         return await self.event_store.get_events(
             event_types=event_types,
             from_timestamp=from_timestamp,
             to_timestamp=to_timestamp,
             limit=limit
         )
-    
-    async def get_event_by_id(self, event_id: str) -> Optional[Event]:
+
+    async def get_event_by_id(self, event_id: str) -> Event | None:
         """Get a specific event by ID.
         
         Args:
@@ -478,10 +481,10 @@ class EventBus:
         """
         if not self.event_store:
             return None
-        
+
         return await self.event_store.get_event_by_id(event_id)
-    
-    def get_stats(self) -> Dict[str, Any]:
+
+    def get_stats(self) -> dict[str, Any]:
         """Get event bus statistics.
         
         Returns:
@@ -498,7 +501,42 @@ class EventBus:
             "dead_letter_queue_size": self._dead_letter_queue.qsize(),
             "max_concurrent_handlers": self.max_concurrent_handlers
         }
-    
+
+    def publish_threadsafe(self, event: Event) -> bool:
+        """Publish an event from a non-async thread safely.
+
+        Uses the captured event loop from start() to enqueue the event.
+        Returns False if the bus isn't running yet.
+        """
+        try:
+            if not self._running or self._loop is None:
+                # Bus not started yet; skip quietly
+                return False
+
+            # Store event if event store is configured
+            if self.event_store:
+                fut_store = asyncio.run_coroutine_threadsafe(
+                    self.event_store.store_event(event), self._loop
+                )
+                # Fire-and-forget; do not block
+                _ = fut_store
+
+            # Enqueue for processing
+            fut_queue = asyncio.run_coroutine_threadsafe(
+                self._event_queue.put(event), self._loop
+            )
+            _ = fut_queue
+
+            # Metrics (best-effort)
+            if self.metrics:
+                self.metrics.record_counter(
+                    "event_bus.events_published", tags={"event_type": event.event_type}
+                )
+            return True
+        except Exception as e:
+            logger.debug(f"Thread-safe publish failed: {e}")
+            return False
+
     async def _process_events(self):
         """Background event processing loop."""
         while self._running:
@@ -506,34 +544,34 @@ class EventBus:
                 # Wait for event with timeout to allow clean shutdown
                 try:
                     event = await asyncio.wait_for(self._event_queue.get(), timeout=1.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     continue
-                
+
                 # Process event concurrently
                 await self._handle_event(event)
-                
+
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.error(f"Error in event processing loop: {e}")
                 await asyncio.sleep(1)
-    
+
     async def _handle_event(self, event: Event):
         """Handle a single event by dispatching to subscribers."""
         # Find matching subscriptions
         matching_subscriptions = set()
-        
+
         # Check specific event type subscriptions
         if event.event_type in self._subscriptions_by_type:
             matching_subscriptions.update(self._subscriptions_by_type[event.event_type])
-        
+
         # Check wildcard subscriptions
         if "*" in self._subscriptions_by_type:
             matching_subscriptions.update(self._subscriptions_by_type["*"])
-        
+
         if not matching_subscriptions:
             return
-        
+
         # Create handler tasks
         handler_tasks = []
         for sub_id in matching_subscriptions:
@@ -541,39 +579,39 @@ class EventBus:
             if subscription and subscription.filter.matches(event):
                 task = asyncio.create_task(self._execute_handler(subscription, event))
                 handler_tasks.append(task)
-        
+
         if handler_tasks:
             # Wait for all handlers to complete
             results = await asyncio.gather(*handler_tasks, return_exceptions=True)
-            
+
             # Record metrics
             if self.metrics:
                 success_count = sum(1 for r in results if r is True)
                 failure_count = len(results) - success_count
-                
+
                 self.metrics.record_counter(
                     "event_bus.handlers_executed",
                     value=len(results),
                     tags={"event_type": event.event_type}
                 )
-                
+
                 if failure_count > 0:
                     self.metrics.record_counter(
                         "event_bus.handler_failures",
                         value=failure_count,
                         tags={"event_type": event.event_type}
                     )
-    
+
     async def _execute_handler(self, subscription: EventSubscription, event: Event) -> bool:
         """Execute a single event handler with concurrency control."""
         async with self._semaphore:
             success = await subscription.handle_event(event)
-            
+
             if not success and subscription.dead_letter_enabled:
                 await self._dead_letter_queue.put((event, subscription))
-            
+
             return success
-    
+
     async def _process_dead_letters(self):
         """Process events that failed handling."""
         while self._running:
@@ -583,46 +621,46 @@ class EventBus:
                         self._dead_letter_queue.get(),
                         timeout=1.0
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     continue
-                
+
                 logger.warning(
                     f"Event {event.event_id} failed handling by subscription "
                     f"{subscription.subscription_id}"
                 )
-                
+
                 # Record metrics
                 if self.metrics:
                     self.metrics.record_counter(
                         "event_bus.dead_letters",
                         tags={"event_type": event.event_type}
                     )
-                
+
                 # Could implement dead letter storage or notification here
-                
+
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.error(f"Error in dead letter processing: {e}")
                 await asyncio.sleep(1)
-    
+
     async def __aenter__(self):
         """Async context manager entry."""
         await self.start()
         return self
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
         await self.stop()
 
 
 # Global event bus instance
-_global_event_bus: Optional[EventBus] = None
+_global_event_bus: EventBus | None = None
 
 
 def get_event_bus(
-    event_store: Optional[IEventStore] = None,
-    metrics: Optional[IMetrics] = None
+    event_store: IEventStore | None = None,
+    metrics: IMetrics | None = None
 ) -> EventBus:
     """Get the global event bus instance.
     
@@ -650,10 +688,10 @@ def reset_event_bus() -> None:
 # Convenience functions
 async def publish_event(
     event_type: str,
-    data: Dict[str, Any],
-    source: Optional[str] = None,
+    data: dict[str, Any],
+    source: str | None = None,
     priority: EventPriority = EventPriority.NORMAL,
-    correlation_id: Optional[str] = None
+    correlation_id: str | None = None
 ) -> bool:
     """Convenience function to publish an event.
     
@@ -674,14 +712,36 @@ async def publish_event(
         priority=priority,
         correlation_id=correlation_id
     )
-    
+
     event_bus = get_event_bus()
     return await event_bus.publish(event)
 
 
+def publish_event_threadsafe(
+    event_type: str,
+    data: dict[str, Any],
+    source: str | None = None,
+    priority: EventPriority = EventPriority.NORMAL,
+    correlation_id: str | None = None,
+) -> bool:
+    """Publish an event from a non-async context if the bus is running.
+
+    Returns False if the bus isn't running yet (safe no-op).
+    """
+    event = Event(
+        event_type=event_type,
+        data=data,
+        source=source,
+        priority=priority,
+        correlation_id=correlation_id,
+    )
+    event_bus = get_event_bus()
+    return event_bus.publish_threadsafe(event)
+
+
 def subscribe_to_events(
-    event_types: Optional[Set[str]] = None,
-    handler: Optional[Callable[[Event], Any]] = None,
+    event_types: set[str] | None = None,
+    handler: Callable[[Event], Any] | None = None,
     is_async: bool = True
 ):
     """Decorator for subscribing to events.
@@ -695,11 +755,11 @@ def subscribe_to_events(
         event_filter = EventFilter(event_types=event_types)
         event_bus = get_event_bus()
         subscription_id = event_bus.subscribe(func, event_filter, is_async)
-        
+
         # Store subscription ID on function for later unsubscription
         func._event_subscription_id = subscription_id
         return func
-    
+
     if handler:
         return decorator(handler)
     return decorator

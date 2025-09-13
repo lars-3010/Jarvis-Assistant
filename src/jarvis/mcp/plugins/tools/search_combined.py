@@ -5,14 +5,18 @@ This plugin provides combined semantic and keyword search capabilities
 across vault content with intelligent result fusion and unified scoring.
 """
 
+import json
 import math
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from jarvis.core.interfaces import IVaultReader, IVectorSearcher
 from jarvis.mcp.plugins.base import SearchPlugin
+from jarvis.mcp.structured import combined_search_to_json
+from jarvis.mcp.schemas import SearchSchemaConfig, create_search_schema
 from jarvis.utils.errors import PluginError
 from jarvis.utils.logging import setup_logging
 from mcp import types
@@ -206,49 +210,35 @@ class SearchCombinedPlugin(SearchPlugin):
         return [IVectorSearcher, IVaultReader]
 
     def get_tool_definition(self) -> types.Tool:
-        """Get the MCP tool definition."""
+        """Get the MCP tool definition using standardized schema."""
+        schema_config = SearchSchemaConfig(
+            enable_content_search=True,
+            enable_vault_selection=True,
+            default_limit=10,
+            max_limit=50,
+            supported_formats=["json", "markdown"],
+        )
+
+        input_schema = create_search_schema(schema_config)
+
         return types.Tool(
             name=self.name,
             description=self.description,
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Natural language search query"
-                    },
-                    "limit": {
-                        "type": "integer",
-                        "description": "Maximum number of results to return",
-                        "default": 10,
-                        "minimum": 1,
-                        "maximum": 50
-                    },
-                    "search_content": {
-                        "type": "boolean",
-                        "description": "Whether to include keyword search within file content",
-                        "default": True
-                    },
-                    "vault": {
-                        "type": "string",
-                        "description": "Optional vault name to search within"
-                    }
-                },
-                "required": ["query"]
-            }
+            inputSchema=input_schema,
         )
 
-    def _parse_arguments(self, arguments: dict[str, Any]) -> tuple[str, int, bool, str | None]:
+    def _parse_arguments(self, arguments: dict[str, Any]) -> tuple[str, int, bool, str | None, str]:
         """Parse and validate arguments."""
         query = arguments.get("query", "").strip()
         limit = arguments.get("limit", 10)
         search_content = arguments.get("search_content", True)
         vault_name = arguments.get("vault")
+        output_format = arguments.get("format", "markdown").lower()
 
         query_preview = f"{query[:QUERY_PREVIEW_LENGTH]}{'...' if len(query) > QUERY_PREVIEW_LENGTH else ''}"
         logger.info(f"📋 Parsed arguments - query: '{query_preview}', limit: {limit}, search_content: {search_content}, vault_name: {vault_name}")
 
-        return query, limit, search_content, vault_name
+        return query, limit, search_content, vault_name, output_format
 
     def _get_services(self) -> tuple[IVectorSearcher, IVaultReader]:
         """Get required services from container."""
@@ -367,7 +357,7 @@ class SearchCombinedPlugin(SearchPlugin):
         logger.debug(f"📝 Raw arguments received: {arguments}")
 
         # Parse and validate arguments
-        query, limit, search_content, vault_name = self._parse_arguments(arguments)
+        query, limit, search_content, vault_name, output_format = self._parse_arguments(arguments)
 
         if not query:
             logger.warning("❌ Query validation failed: empty query provided")
@@ -412,13 +402,20 @@ class SearchCombinedPlugin(SearchPlugin):
             for result in unified_results:
                 result.context_snippet = fusion.generate_context_snippet(result, query)
 
-            # Format results
-            response_lines = self._format_results(unified_results, query, fusion)
-
             total_duration = time.time() - start_time
             logger.info(f"🎉 Enhanced combined search completed successfully in {total_duration:.3f}s")
 
-            return [types.TextContent(type="text", text="\n".join(response_lines))]
+            if output_format == "json":
+                payload = combined_search_to_json(
+                    query=query,
+                    unified_results=unified_results,
+                    execution_time_ms=int(total_duration * 1000),
+                )
+                payload["correlation_id"] = str(uuid4())
+                return [types.TextContent(type="text", text=json.dumps(payload, indent=2))]
+            else:
+                response_lines = self._format_results(unified_results, query, fusion)
+                return [types.TextContent(type="text", text="\n".join(response_lines))]
 
         except Exception as e:
             total_duration = time.time() - start_time

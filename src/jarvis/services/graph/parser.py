@@ -1,8 +1,9 @@
 """Markdown Parser for Obsidian Notes with Semantic Relationships"""
-import re
 import logging
+import re
+from typing import Any
+
 import yaml
-from typing import Dict, Any, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +24,10 @@ class MarkdownParser:
 
     def __init__(self, content: str):
         self.content = content
-        self.frontmatter: Optional[Dict[str, Any]] = None
+        self.frontmatter: dict[str, Any] | None = None
         self.content_without_frontmatter: str = ""
 
-    def parse(self) -> Dict[str, Any]:
+    def parse(self) -> dict[str, Any]:
         """
         Parses the Markdown content.
 
@@ -71,14 +72,14 @@ class MarkdownParser:
             logger.warning(f"Error parsing frontmatter: {e}")
             self.frontmatter = {}
 
-    def _extract_semantic_relationships(self) -> Dict[str, List[Dict[str, Any]]]:
+    def _extract_semantic_relationships(self) -> dict[str, list[dict[str, Any]]]:
         """
         Extracts semantic relationships from frontmatter.
 
         Returns:
             Dictionary of relationship types to targets.
         """
-        relationships: Dict[str, List[Dict[str, Any]]] = {}
+        relationships: dict[str, list[dict[str, Any]]] = {}
 
         if not self.frontmatter:
             return relationships
@@ -90,7 +91,7 @@ class MarkdownParser:
                 if rel_value is None:
                     continue
 
-                targets_list: List[Dict[str, Any]] = []
+                targets_list: list[dict[str, Any]] = []
 
                 if isinstance(rel_value, str):
                     cleaned_value = rel_value.strip()
@@ -99,7 +100,7 @@ class MarkdownParser:
 
                 elif isinstance(rel_value, list):
                     for item in rel_value:
-                        target_str: Optional[str] = None
+                        target_str: str | None = None
                         if isinstance(item, str) and item.strip():
                             target_str = item.strip()
                         elif isinstance(item, dict) and "target" in item:
@@ -115,7 +116,7 @@ class MarkdownParser:
 
         return self._normalize_targets(relationships)
 
-    def _parse_internal_links(self) -> List[Dict[str, str]]:
+    def _parse_internal_links(self) -> list[dict[str, str]]:
         """
         Extracts internal links from Markdown content.
 
@@ -143,7 +144,7 @@ class MarkdownParser:
 
         return links
 
-    def _parse_tags(self) -> List[str]:
+    def _parse_tags(self) -> list[str]:
         """
         Extracts tags from frontmatter and markdown content.
 
@@ -167,7 +168,7 @@ class MarkdownParser:
 
         return list(tags)
 
-    def _parse_headings(self) -> List[Dict[str, Any]]:
+    def _parse_headings(self) -> list[dict[str, Any]]:
         """
         Extracts headings from Markdown content.
 
@@ -188,7 +189,7 @@ class MarkdownParser:
 
         return headings
 
-    def _normalize_targets(self, relationships: Dict[str, List[Dict[str, Any]]]) -> Dict[str, List[Dict[str, Any]]]:
+    def _normalize_targets(self, relationships: dict[str, list[dict[str, Any]]]) -> dict[str, list[dict[str, Any]]]:
         """
         Normalize relationship targets by ensuring all have .md extension.
 

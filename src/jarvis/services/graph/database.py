@@ -4,15 +4,16 @@ Handles all interactions with the Neo4j graph database.
 """
 import logging
 import os
-from typing import Dict, Any, List, Optional
+from typing import Any
 
-from neo4j import GraphDatabase as Neo4jGraphDatabase, Driver, Transaction
+from neo4j import Driver, Transaction
+from neo4j import GraphDatabase as Neo4jGraphDatabase
 from neo4j.exceptions import Neo4jError, ServiceUnavailable
 
+from jarvis.core.interfaces import IGraphDatabase
 from jarvis.services.health import check_neo4j_health
 from jarvis.utils.config import JarvisSettings
-from jarvis.utils.errors import ServiceUnavailableError, JarvisError
-from jarvis.core.interfaces import IGraphDatabase
+from jarvis.utils.errors import ServiceUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ class GraphDatabase(IGraphDatabase):
         Args:
             settings: The application settings object.
         """
-        self.driver: Optional[Driver] = None
+        self.driver: Driver | None = None
         self.enabled = settings.graph_enabled
 
         if not self.enabled:
@@ -38,14 +39,20 @@ class GraphDatabase(IGraphDatabase):
             logger.info(f"Attempting Neo4j connection with URI: {settings.neo4j_uri}")
             logger.info(f"Neo4j user: {settings.neo4j_user}")
             logger.info(f"Neo4j password: {'*' * len(settings.neo4j_password)} (length: {len(settings.neo4j_password)})")
-            
+
             # Check environment variables for debugging
             env_password = os.environ.get("JARVIS_NEO4J_PASSWORD")
             env_user = os.environ.get("JARVIS_NEO4J_USER")
             env_uri = os.environ.get("JARVIS_NEO4J_URI")
-            
-            logger.debug(f"Environment variables - Password: {env_password}, User: {env_user}, URI: {env_uri}")
-            
+
+            # Avoid logging secret values; only indicate presence for security
+            logger.debug(
+                "Environment variables — PASSWORD:%s USER:%s URI:%s",
+                "SET" if env_password else "NOT SET",
+                "SET" if env_user else "NOT SET",
+                "SET" if env_uri else "NOT SET",
+            )
+
             is_healthy = check_neo4j_health(
                 uri=settings.neo4j_uri,
                 auth=(settings.neo4j_user, settings.neo4j_password)
@@ -55,16 +62,16 @@ class GraphDatabase(IGraphDatabase):
                 logger.error(f"Neo4j health check failed for {settings.neo4j_uri} with user '{settings.neo4j_user}'")
                 raise ServiceUnavailable(f"Neo4j connection to {settings.neo4j_uri} failed.")
 
-            logger.info(f"Neo4j health check passed, creating driver connection...")
+            logger.info("Neo4j health check passed, creating driver connection...")
             self.driver = Neo4jGraphDatabase.driver(
                 settings.neo4j_uri,
                 auth=(settings.neo4j_user, settings.neo4j_password)
             )
-            
+
             logger.info("Testing driver connectivity...")
             self.driver.verify_connectivity()
             logger.info("Neo4j driver connectivity verified successfully!")
-            
+
             self._initialize_schema()
             logger.info(f"Connected to Neo4j at {settings.neo4j_uri}")
 
@@ -83,7 +90,7 @@ class GraphDatabase(IGraphDatabase):
             GraphDatabase instance
         """
         from jarvis.utils.config import JarvisSettings
-        
+
         # Create a temporary settings object with the config values
         settings = JarvisSettings(
             graph_enabled=config.get('enabled', True),
@@ -91,7 +98,7 @@ class GraphDatabase(IGraphDatabase):
             neo4j_user=config.get('username', 'neo4j'),
             neo4j_password=config.get('password', 'password')
         )
-        
+
         return cls(settings)
 
     @property
@@ -104,11 +111,11 @@ class GraphDatabase(IGraphDatabase):
         if self.driver:
             self.driver.close()
             logger.info("Neo4j connection closed")
-    
+
     def __enter__(self):
         """Context manager entry."""
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit with resource cleanup."""
         self.close()
@@ -140,7 +147,7 @@ class GraphDatabase(IGraphDatabase):
             except Neo4jError as e:
                 logger.error(f"Error initializing Neo4j schema: {e}")
 
-    def create_or_update_note(self, note_data: Dict[str, Any]) -> Dict[str, Any]:
+    def create_or_update_note(self, note_data: dict[str, Any]) -> dict[str, Any]:
         """
         Create or update a note with all its relationships
         """
@@ -154,7 +161,7 @@ class GraphDatabase(IGraphDatabase):
             with self.driver.session() as session:
                 result = session.execute_write(self._create_note_tx, note_data)
 
-                if "relationships" in note_data and note_data["relationships"]:
+                if note_data.get("relationships"):
                     rel_result = session.execute_write(
                         self._create_relationships_tx,
                         note_data["path"],
@@ -162,7 +169,7 @@ class GraphDatabase(IGraphDatabase):
                     )
                     result["relationships_created"] = rel_result
 
-                if "links" in note_data and note_data["links"]:
+                if note_data.get("links"):
                     link_result = session.execute_write(
                         self._create_links_tx,
                         note_data["path"],
@@ -175,10 +182,10 @@ class GraphDatabase(IGraphDatabase):
             logger.error(f"Error creating/updating note: {e}")
             return {"error": str(e)}
 
-    def _create_note_tx(self, tx: Transaction, note_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _create_note_tx(self, tx: Transaction, note_data: dict[str, Any]) -> dict[str, Any]:
         """Transaction function to create or update a note"""
         logger.debug(f"Creating/updating note: {note_data['path']}")
-        
+
         query = """
         MERGE (n:Note {path: $path})
         ON CREATE SET
@@ -199,10 +206,10 @@ class GraphDatabase(IGraphDatabase):
             "name": note_data.get("name", note_data["title"]),  # Fallback to title if name not provided
             "content": note_data.get("content", ""),  # Fallback to empty string if content not provided
         }
-        
+
         logger.debug(f"Database params for {note_data['path']}: title='{params['title']}', name='{params['name']}', content_length={len(params['content'])}")
 
-        if "tags" in note_data and note_data["tags"]:
+        if note_data.get("tags"):
             query += ", n.tags = $tags"
             params["tags"] = note_data["tags"]
             logger.debug(f"Adding tags to {note_data['path']}: {note_data['tags']}")
@@ -217,7 +224,7 @@ class GraphDatabase(IGraphDatabase):
 
         result = tx.run(query, params)
         summary = result.consume()
-        
+
         operation = "created" if summary.counters.nodes_created > 0 else "updated"
         logger.debug(f"Note {operation}: {note_data['path']}")
 
@@ -230,8 +237,8 @@ class GraphDatabase(IGraphDatabase):
     def _create_relationships_tx(
         self, tx: Transaction,
         source_path: str,
-        relationships: Dict[str, List[Dict[str, Any]]]
-    ) -> Dict[str, int]:
+        relationships: dict[str, list[dict[str, Any]]]
+    ) -> dict[str, int]:
         """Transaction function to create semantic relationships"""
         relationship_counts = {}
 
@@ -273,7 +280,7 @@ class GraphDatabase(IGraphDatabase):
     def _create_links_tx(
         self, tx: Transaction,
         source_path: str,
-        links: List[Dict[str, str]]
+        links: list[dict[str, str]]
     ) -> int:
         """Transaction function to create regular markdown link relationships"""
         query = """
@@ -308,7 +315,7 @@ class GraphDatabase(IGraphDatabase):
 
         return link_count
 
-    def get_note_graph(self, path: str, depth: int = 2) -> Dict[str, Any]:
+    def get_note_graph(self, path: str, depth: int = 2) -> dict[str, Any]:
         """
         Get a knowledge graph centered on a specific note
         """
@@ -316,13 +323,13 @@ class GraphDatabase(IGraphDatabase):
             raise ServiceUnavailableError("Graph database is not available.")
 
         logger.info(f"Getting knowledge graph for path: '{path}' with depth: {depth}")
-        
+
         with self.driver.session() as session:
             try:
                 # First, let's see what paths are available in the database
                 available_paths = session.execute_read(self._get_available_paths_tx, path)
                 logger.info(f"Available paths matching '{path}': {available_paths}")
-                
+
                 result = session.execute_read(self._get_knowledge_graph_tx, path, depth)
                 logger.debug(f"Knowledge graph result: {result}")
                 return result
@@ -330,15 +337,15 @@ class GraphDatabase(IGraphDatabase):
                 logger.error(f"Error getting knowledge graph: {e}")
                 return {"nodes": [], "relationships": []}
 
-    def _get_available_paths_tx(self, tx: Transaction, search_term: str) -> List[str]:
+    def _get_available_paths_tx(self, tx: Transaction, search_term: str) -> list[str]:
         """Transaction function to get available paths that match a search term"""
         # First try exact match
         exact_query = "MATCH (n:Note {path: $path}) RETURN n.path as path"
         exact_result = tx.run(exact_query, path=search_term).data()
-        
+
         if exact_result:
             return [record["path"] for record in exact_result]
-        
+
         # Then try partial matches (case-insensitive)
         partial_query = """
         MATCH (n:Note) 
@@ -349,10 +356,10 @@ class GraphDatabase(IGraphDatabase):
         LIMIT 10
         """
         partial_result = tx.run(partial_query, search_term=search_term).data()
-        
+
         return [f"{record['path']} (title: {record['title']})" for record in partial_result]
 
-    def _get_knowledge_graph_tx(self, tx: Transaction, path: str, depth: int) -> Dict[str, Any]:
+    def _get_knowledge_graph_tx(self, tx: Transaction, path: str, depth: int) -> dict[str, Any]:
         """Transaction function to get knowledge graph"""
         query = f"""
         MATCH path = (center:Note {{path: $path}})-[*0..{depth}]-(related:Note)

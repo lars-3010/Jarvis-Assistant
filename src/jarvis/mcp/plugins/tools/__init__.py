@@ -9,23 +9,27 @@ from typing import List, Type
 
 from jarvis.mcp.plugins.base import MCPToolPlugin
 
-# Import all plugin implementations
-from .semantic_search import SemanticSearchPlugin
-from .read_note import ReadNotePlugin
-from .list_vaults import ListVaultsPlugin
-from .search_vault import SearchVaultPlugin
-from .search_graph import SearchGraphPlugin
-from .search_combined import SearchCombinedPlugin
-from .health_status import HealthStatusPlugin
-from .performance_metrics import PerformanceMetricsPlugin
+from .analytics_cache_status import AnalyticsCacheStatusPlugin
+from .analytics_invalidate_cache import AnalyticsInvalidateCachePlugin
+from .analyze_domains import AnalyzeDomainsPlugin
+from .assess_quality import AssessQualityPlugin
 
 # Analytics plugins
 from .get_vault_context import GetVaultContextPlugin
-from .assess_quality import AssessQualityPlugin
-from .analyze_domains import AnalyzeDomainsPlugin
+from .health_status import HealthStatusPlugin
+from .list_vaults import ListVaultsPlugin
+from .performance_metrics import PerformanceMetricsPlugin
+from .read_note import ReadNotePlugin
+from .search_combined import SearchCombinedPlugin
+from .search_graph import SearchGraphPlugin
+from .search_graphrag import SearchGraphRAGPlugin
+from .search_vault import SearchVaultPlugin
+
+# Import all plugin implementations
+from .semantic_search import SemanticSearchPlugin
 
 
-def get_builtin_plugins() -> List[Type[MCPToolPlugin]]:
+def get_builtin_plugins() -> list[type[MCPToolPlugin]]:
     """Get all built-in plugin classes.
     
     Returns:
@@ -44,13 +48,16 @@ def get_builtin_plugins() -> List[Type[MCPToolPlugin]]:
         GetVaultContextPlugin,
         AssessQualityPlugin,
         AnalyzeDomainsPlugin,
+        AnalyticsCacheStatusPlugin,
+        AnalyticsInvalidateCachePlugin,
+        SearchGraphRAGPlugin,
     ]
 
 
 __all__ = [
     "get_builtin_plugins",
     "SemanticSearchPlugin",
-    "ReadNotePlugin", 
+    "ReadNotePlugin",
     "ListVaultsPlugin",
     "SearchVaultPlugin",
     "SearchGraphPlugin",
@@ -61,4 +68,7 @@ __all__ = [
     "GetVaultContextPlugin",
     "AssessQualityPlugin",
     "AnalyzeDomainsPlugin",
+    "AnalyticsCacheStatusPlugin",
+    "AnalyticsInvalidateCachePlugin",
+    "SearchGraphRAGPlugin",
 ]

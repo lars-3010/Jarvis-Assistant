@@ -8,7 +8,7 @@
     "patterns": [
       "docs/01-overview/architecture.md",
       "docs/01-overview/architectural-roadmap.md",
-      "docs/02-system-design/*.md",
+      "docs/02-architecture/*.md",
       "src/jarvis/core/*.py",
       "src/jarvis/services/*.py",
       "src/jarvis/mcp/*.py",

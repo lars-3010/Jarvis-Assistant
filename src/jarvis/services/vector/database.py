@@ -8,21 +8,20 @@ document embeddings using DuckDB's vector similarity capabilities.
 from collections.abc import Sequence
 from pathlib import Path
 from textwrap import dedent
-from typing import Optional, List
 
 import duckdb
 import torch
 
-from jarvis.utils.logging import setup_logging
-from jarvis.utils.errors import JarvisError, ServiceError
 from jarvis.core.interfaces import IVectorDatabase
+from jarvis.utils.errors import JarvisError, ServiceError
+from jarvis.utils.logging import setup_logging
 
 logger = setup_logging(__name__)
 
 
 class VectorDatabase(IVectorDatabase):
     """DuckDB-based vector database for document embeddings."""
-    
+
     def __init__(self, database_path: Path, read_only: bool = False, create_if_missing: bool = False):
         """Initialize the vector database.
         
@@ -34,10 +33,10 @@ class VectorDatabase(IVectorDatabase):
         self.database_path = database_path
         self.read_only = read_only
         self.create_if_missing = create_if_missing
-        
+
         # Ensure database directory exists
         database_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # Handle missing database file gracefully
         if not database_path.exists() and not create_if_missing:
             if read_only:
@@ -51,7 +50,7 @@ class VectorDatabase(IVectorDatabase):
                     f"Set create_if_missing=True to automatically create the database, "
                     f"or use DatabaseInitializer to create it manually."
                 )
-        
+
         try:
             # If database doesn't exist and create_if_missing is True, DuckDB will create it
             self.ddb_connection = duckdb.connect(str(database_path), read_only=read_only)
@@ -71,7 +70,7 @@ class VectorDatabase(IVectorDatabase):
                 ) from e
             else:
                 raise ServiceError(f"Failed to connect to DuckDB database at {database_path}: {e}") from e
-        
+
         if not self.read_only:
             self.initialize()
 
@@ -89,12 +88,12 @@ class VectorDatabase(IVectorDatabase):
             if not database_path.exists():
                 logger.debug(f"Database file does not exist: {database_path}")
                 return False
-            
+
             # Check if file is readable
             if not database_path.is_file():
                 logger.error(f"Database path exists but is not a file: {database_path}")
                 return False
-            
+
             # Try to open database in read-only mode to test accessibility
             try:
                 with duckdb.connect(str(database_path), read_only=True) as conn:
@@ -105,7 +104,7 @@ class VectorDatabase(IVectorDatabase):
             except Exception as e:
                 logger.error(f"Database exists but is not accessible: {database_path}, error: {e}")
                 return False
-                
+
         except Exception as e:
             logger.error(f"Error checking database existence: {database_path}, error: {e}")
             return False
@@ -123,10 +122,10 @@ class VectorDatabase(IVectorDatabase):
         database_path = config.get('database_path')
         read_only = config.get('read_only', False)
         create_if_missing = config.get('create_if_missing', False)
-        
+
         if not isinstance(database_path, Path):
             database_path = Path(database_path)
-            
+
         return cls(database_path=database_path, read_only=read_only, create_if_missing=create_if_missing)
 
     def initialize(self) -> None:
@@ -164,7 +163,7 @@ class VectorDatabase(IVectorDatabase):
         try:
             # Try to execute a simple query to test connection
             self.ddb_connection.execute("SELECT 1").fetchone()
-            
+
             # Check if required tables exist using DuckDB system tables
             try:
                 # Try to query the notes table directly
@@ -175,7 +174,7 @@ class VectorDatabase(IVectorDatabase):
                 # The table will be created when initialize() is called
                 logger.debug("Notes table not found, but database connection is healthy")
                 return True
-            
+
         except Exception as e:
             logger.error(f"Database health check failed: {e}")
             return False
@@ -189,7 +188,7 @@ class VectorDatabase(IVectorDatabase):
             logger.error(f"Failed to count notes: {e}")
             raise JarvisError(f"Failed to count notes: {e}") from e
 
-    def get_most_recent_seen_timestamp(self, vault_name: str) -> Optional[float]:
+    def get_most_recent_seen_timestamp(self, vault_name: str) -> float | None:
         """Get the most recent seen timestamp for a vault.
         
         Args:
@@ -200,7 +199,7 @@ class VectorDatabase(IVectorDatabase):
         """
         try:
             result = self.ddb_connection.execute(
-                "SELECT max(last_modified) FROM notes WHERE vault_name = ?", 
+                "SELECT max(last_modified) FROM notes WHERE vault_name = ?",
                 (vault_name,)
             ).fetchone()
             return result[0] if result and result[0] is not None else None
@@ -209,12 +208,12 @@ class VectorDatabase(IVectorDatabase):
             raise JarvisError(f"Failed to get recent timestamp for vault {vault_name}: {e}") from e
 
     def store_note(
-        self, 
-        path: Path, 
-        vault_name: str, 
-        last_modified: float, 
-        embedding: List[float],
-        checksum: Optional[str] = None
+        self,
+        path: Path,
+        vault_name: str,
+        last_modified: float,
+        embedding: list[float],
+        checksum: str | None = None
     ) -> bool:
         """Store a note in the database.
         
@@ -231,31 +230,31 @@ class VectorDatabase(IVectorDatabase):
         if self.read_only:
             logger.warning("Cannot store note in read-only database")
             return False
-            
+
         try:
             # DuckDB array update limitation: delete first, then insert
             self.ddb_connection.execute(
-                "DELETE FROM notes WHERE vault_name = ? AND path = ?", 
+                "DELETE FROM notes WHERE vault_name = ? AND path = ?",
                 (vault_name, str(path))
             )
-            
+
             self.ddb_connection.execute(
                 "INSERT INTO notes (path, vault_name, last_modified, emb_minilm_l6_v2, checksum) VALUES (?, ?, ?, ?, ?)",
                 (str(path), vault_name, last_modified, embedding, checksum),
             )
-            
+
             logger.debug(f"Stored note: {vault_name}/{path}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to store note {vault_name}/{path}: {e}")
             raise JarvisError(f"Failed to store note {vault_name}/{path}: {e}") from e
 
     def search(
-        self, 
-        query_embedding: torch.Tensor, 
+        self,
+        query_embedding: torch.Tensor,
         top_k: int = 10,
-        vault_name: Optional[str] = None
+        vault_name: str | None = None
     ) -> Sequence[tuple[str, Path, float]]:
         """Search for notes similar to a query embedding.
         
@@ -285,15 +284,15 @@ class VectorDatabase(IVectorDatabase):
                     LIMIT ?
                 """
                 params = (query_embedding.tolist(), query_embedding.tolist(), top_k)
-            
+
             results = self.ddb_connection.execute(query, params)
             return [(r[0], Path(r[1]), r[2]) for r in results.fetchall()]
-            
+
         except Exception as e:
             logger.error(f"Search failed: {e}")
             raise JarvisError(f"Search failed: {e}") from e
 
-    def get_note_by_path(self, vault_name: str, path: Path) -> Optional[dict]:
+    def get_note_by_path(self, vault_name: str, path: Path) -> dict | None:
         """Get a specific note by vault name and path.
         
         Args:
@@ -308,18 +307,18 @@ class VectorDatabase(IVectorDatabase):
                 "SELECT * FROM notes WHERE vault_name = ? AND path = ?",
                 (vault_name, str(path))
             ).fetchone()
-            
+
             if result:
                 return {
                     'path': result[0],
-                    'vault_name': result[1], 
+                    'vault_name': result[1],
                     'last_modified': result[2],
                     'embedding': result[3],
                     'created_at': result[4] if len(result) > 4 else None,
                     'checksum': result[5] if len(result) > 5 else None
                 }
             return None
-            
+
         except Exception as e:
             logger.error(f"Failed to get note {vault_name}/{path}: {e}")
             raise JarvisError(f"Failed to get note {vault_name}/{path}: {e}") from e
@@ -337,7 +336,7 @@ class VectorDatabase(IVectorDatabase):
         if self.read_only:
             logger.warning("Cannot delete note in read-only database")
             return False
-            
+
         try:
             self.ddb_connection.execute(
                 "DELETE FROM notes WHERE vault_name = ? AND path = ?",
@@ -345,7 +344,7 @@ class VectorDatabase(IVectorDatabase):
             )
             logger.debug(f"Deleted note: {vault_name}/{path}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to delete note {vault_name}/{path}: {e}")
             raise JarvisError(f"Failed to delete note {vault_name}/{path}: {e}") from e
@@ -371,14 +370,14 @@ class VectorDatabase(IVectorDatabase):
                 """,
                 (vault_name,)
             ).fetchone()
-            
+
             return {
                 'vault_name': vault_name,
                 'note_count': result[0] if result else 0,
                 'latest_modified': result[1] if result else None,
                 'earliest_modified': result[2] if result else None
             }
-            
+
         except Exception as e:
             logger.error(f"Failed to get vault stats for {vault_name}: {e}")
             raise JarvisError(f"Failed to get vault stats for {vault_name}: {e}") from e

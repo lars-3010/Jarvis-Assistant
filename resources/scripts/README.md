@@ -1,6 +1,6 @@
-# Dataset Generation Tool Deployment Scripts
+# Scripts (legacy dataset tooling — deprecated)
 
-This directory contains scripts for deploying, managing, and cleaning up the dataset generation tool in Jarvis Assistant.
+This directory historically contained scripts for deploying, managing, and cleaning up the dataset generation tool. The dataset tooling has been removed from the project to keep the core focused on MCP and graph/vector search. The scripts and references are retained here only for historical context.
 
 ## Scripts Overview
 
@@ -12,30 +12,12 @@ This directory contains scripts for deploying, managing, and cleaning up the dat
 python3 resources/scripts/verify_dataset_tool.py
 ```
 
-**Features**:
-- ✅ Checks file structure
-- ✅ Verifies CLI integration
-- ✅ Confirms documentation presence
-- ✅ Validates deployment scripts
-- ✅ Works without full Jarvis dependencies
+Note: The dataset tool and CLI integration referenced below are deprecated and not available in the current codebase.
 
 ### 2. `dataset_tool_deployment.py`
 **Purpose**: Comprehensive deployment and verification of the dataset generation tool.
 
-**Usage**:
-```bash
-# Check installation status
-python resources/scripts/dataset_tool_deployment.py --status
-
-# Verify installation functionality
-python resources/scripts/dataset_tool_deployment.py --verify-only
-
-# Deploy/reinstall the tool
-python resources/scripts/dataset_tool_deployment.py
-
-# Force reinstallation
-python resources/scripts/dataset_tool_deployment.py --force
-```
+Usage examples in this document are no longer applicable.
 
 **Features**:
 - ✅ Prerequisites checking
@@ -44,8 +26,8 @@ python resources/scripts/dataset_tool_deployment.py --force
 - ✅ Comprehensive verification tests
 - ✅ Rollback capability on failure
 
-### 3. `dataset_tool_cleanup.py`
-**Purpose**: Safe removal of the dataset generation tool without affecting core Jarvis functionality.
+### 3. `dataset_tool_cleanup.py` (deprecated)
+**Purpose**: Safe removal of the dataset generation tool (legacy).
 
 **Usage**:
 ```bash
@@ -105,10 +87,7 @@ python resources/scripts/dataset_tool_cleanup.py --keep-cli --keep-files
    python resources/scripts/dataset_tool_deployment.py --force
    ```
 
-3. **Test Functionality**:
-   ```bash
-   jarvis generate-dataset --help
-   ```
+3. Test functionality: not applicable.
 
 ### Removal
 
@@ -177,15 +156,9 @@ python resources/scripts/dataset_tool_cleanup.py --keep-cli --keep-files
 
 ### Common Issues
 
-#### "Command not found" errors
-```bash
-# Use full Python module path
-python -m jarvis.main generate-dataset --help
-
-# Or check if you're in the right directory
-pwd
-ls -la src/jarvis/main.py
-```
+#### "Command not found" errors (legacy)
+The old CLI and dataset generation commands have been removed.
+Use MCP entrypoints (e.g., `jarvis-mcp-stdio`) and MCP tools instead.
 
 #### Import errors
 ```bash
@@ -205,15 +178,8 @@ chmod +x resources/scripts/*.py
 
 ### Recovery Procedures
 
-#### Restore from Backup
-```bash
-# Find backup directory
-ls -la backup_dataset_tool_*
-
-# Restore manually if needed
-cp -r backup_dataset_tool_TIMESTAMP/dataset_generation src/jarvis/tools/
-cp backup_dataset_tool_TIMESTAMP/main.py src/jarvis/
-```
+#### Restore from Backup (legacy)
+Backups of the dataset tool are no longer used.
 
 #### Complete Reset
 ```bash
@@ -242,8 +208,7 @@ uv sync
 echo "Deploying dataset tool..."
 python resources/scripts/dataset_tool_deployment.py --verify-only
 
-echo "Testing CLI command..."
-python -m jarvis.main generate-dataset --help
+echo "Skipping CLI command (deprecated)"
 
 echo "Deployment successful!"
 ```
@@ -260,11 +225,7 @@ mkdir -p test_vault
 echo "# Test Note 1\n[[Test Note 2]]" > test_vault/note1.md
 echo "# Test Note 2\nContent here" > test_vault/note2.md
 
-# Test dataset generation
-python -m jarvis.main generate-dataset \
-    --vault test_vault \
-    --output test_output \
-    --batch-size 8
+echo "Dataset generation test skipped (deprecated)"
 
 # Verify output
 if [ -f "test_output/notes_dataset.csv" ] && [ -f "test_output/pairs_dataset.csv" ]; then
@@ -293,10 +254,9 @@ fi
 4. ✅ Verify each step completes
 
 ### After Deployment
-1. ✅ Run full verification
-2. ✅ Test CLI command
-3. ✅ Test with small dataset
-4. ✅ Check documentation links
+1. ✅ Validate core MCP tools
+2. ✅ Test search/graph tools
+3. ✅ Keep documentation aligned with current architecture
 
 ### Before Cleanup
 1. ✅ Backup any important datasets

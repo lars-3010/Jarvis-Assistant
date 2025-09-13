@@ -1,0 +1,63 @@
+filters:
+  and:
+    - or:
+        - file.hasTag("🔲")
+        - file.inFolder("Atlas/Tasks")
+    - '!file.inFolder("Resources/Templates")'
+formulas:
+  overdue: due && due < today() && done != true
+  days_until_due: "due ? (due - today()) / (1000 * 60 * 60 * 24) : null"
+  urgency_score: 'if(due, (priority == "high" ? 3 : priority == "medium" ? 2 : 1) * (overdue ? 2 : days_until_due < 3 ? 1.5 : 1), priority == "high" ? 3 : priority == "medium" ? 2 : 1)'
+  status_emoji: 'done == true ? "✅" : status == "doing" ? "🔄" : status == "blocked" ? "🚫" : "⭕"'
+  priority_emoji: 'priority == "high" ? "🔴" : priority == "medium" ? "🟡" : "🟢"'
+  project_link: 'project ? "[[" + project + "]]" : ""'
+properties:
+  file.name:
+    displayName: Task
+  formula.status_emoji:
+    displayName: Status
+  formula.priority_emoji:
+    displayName: Priority
+  due:
+    displayName: Due Date
+  formula.project_link:
+    displayName: Project
+  formula.days_until_due:
+    displayName: Days Left
+views:
+  - type: table
+    name: to do
+    filters:
+      and:
+        - done != true
+    order:
+      - file.name
+      - done
+      - priority
+      - project
+      - due to
+      - summary
+      - sources
+      - tags
+    sort:
+      - property: priority
+        direction: DESC
+      - property: file.name
+        direction: ASC
+      - property: status
+        direction: ASC
+      - property: project
+        direction: ASC
+    limit: 10
+    columnSize:
+      note.done: 53
+      note.status: 83
+      note.project: 87
+      note.due to: 115
+      note.sources: 131
+      note.tags: 51
+  - type: table
+    name: Jarvis
+    filters:
+      and:
+        - Projects.contains(link("Projects/Jarvis Assistant", "Jarvis Assistant"))

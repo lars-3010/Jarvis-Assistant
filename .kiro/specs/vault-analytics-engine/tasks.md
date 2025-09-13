@@ -2,6 +2,14 @@
 
 ## Task Overview
 
+Status Overview (2025-09-11):
+- ✅ Core service orchestrator exists (`VaultAnalyticsService`)
+- ✅ Tools implemented: `get-vault-context`, `assess-quality`, `analyze-domains`
+- ✅ Caching infrastructure present with L1/L2 distinctions
+- ⏳ Event-driven cache invalidation pending wiring to watcher/indexer
+- ⏳ Freshness/confidence fields need to be standardized across outputs
+- ⏳ Trend tracking and analytics cache tools are pending
+
 This implementation plan converts the Vault Analytics Engine design into a series of incremental coding tasks. Each task builds on previous work and includes comprehensive testing to ensure reliability and performance.
 
 The implementation follows a bottom-up approach: data models → core analyzers → service integration → MCP tools → optimization.
@@ -92,6 +100,12 @@ The implementation follows a bottom-up approach: data models → core analyzers 
   - Write tests for event handling and cache consistency
   - _Requirements: 6.4, 5.2_
 
+- [ ] 9a. Add freshness/confidence metadata in outputs (NEW)
+  - Include `analysis_timestamp`, `content_hash/sample_hash`, `cache_hit` flags
+  - Add `confidence_score` derived from component coverage and service health
+  - Update MCP tools to surface these fields in JSON mode
+  - _Requirements: 3.3, 5.5_
+
 ---
 
 ## Phase 4: MCP Tool Implementation
@@ -103,6 +117,11 @@ The implementation follows a bottom-up approach: data models → core analyzers 
   - Add request validation and parameter handling
   - Create comprehensive integration tests with real vault data
   - _Requirements: 1.1, 3.1, 3.2, 3.3_
+
+- [ ] 10a. Add analytics cache operations (NEW)
+  - Implement `analytics-cache-status` and `analytics-invalidate-cache` tools (optional)
+  - Surface hit rates, entry counts, and memory usage
+  - _Requirements: 5.2, 6.3_
 
 - [ ] 11. Create assess-quality MCP tool
   - Implement `assess_quality` MCP tool for quality analysis

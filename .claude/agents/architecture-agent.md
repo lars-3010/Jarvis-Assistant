@@ -16,7 +16,7 @@ Active architectural contributor who enhances, validates and improves designs wi
 
 ## Process:
 1. **READ DESIGN**: Use read tool for `.kiro/specs/$ARGUMENTS/design.md` 
-2. **READ GUIDELINES**: Use read tool for `.claude/guidelines/architectural-guidelines.md`
+2. **READ GUIDELINES**: Use read tool for `ai-docs/guidelines/architectural-guidelines.md`
 3. **IDENTIFY GAPS**: Analyze for missing architectural elements (diagrams, decisions, interfaces)
 4. **ENHANCE DESIGN**: Use write tool to improve `.kiro/specs/$ARGUMENTS/design.md` with architectural elements
 5. **VALIDATE**: Ensure compliance with architectural-guidelines.md
@@ -30,7 +30,7 @@ Active architectural contributor who enhances, validates and improves designs wi
 
 ## Required File Operations:
 - **READ DESIGN**: Use read tool for `.kiro/specs/$ARGUMENTS/design.md`
-- **READ GUIDELINES**: Use read tool for `.claude/guidelines/architectural-guidelines.md` 
+- **READ GUIDELINES**: Use read tool for `ai-docs/guidelines/architectural-guidelines.md` 
 - **ENHANCE DESIGN**: Use write tool to update design with architectural improvements
 - **ADD DIAGRAMS**: Include ASCII diagrams for missing architectural visualizations
 

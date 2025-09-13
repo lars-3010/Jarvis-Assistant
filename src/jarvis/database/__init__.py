@@ -5,8 +5,8 @@ This module provides the factory pattern and adapters for multiple
 database backends, enabling configuration-driven database selection.
 """
 
-from .factory import DatabaseFactory
 from .adapters import *
+from .factory import DatabaseFactory
 from .migration import DatabaseMigrator
 
 __all__ = [

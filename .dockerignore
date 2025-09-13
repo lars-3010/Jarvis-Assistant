@@ -1,0 +1,48 @@
+# Prevent secrets, local caches, and dev files from entering Docker build context
+
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Editors/OS
+.vscode/
+.idea/
+.DS_Store
+
+# Node
+node_modules/
+
+# Local config and secrets
+.env
+config/.env
+
+# Logs and temporary data
+*.log
+temporary/
+resources/temporary/
+resources/data/
+resources/data-generation/
+
+# Databases and indexes
+*.db
+*.sqlite
+*.sqlite3
+*.index
+embeddings/
+indexes/
+index.faiss
+
+# Tests and docs (not needed for runtime image)
+resources/tests/
+docs/
+ai-docs/
+.kiro/
+.claude/

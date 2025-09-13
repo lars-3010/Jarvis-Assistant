@@ -59,10 +59,10 @@ Before contributing, ensure you have:
 4. **Create Environment File**
    ```bash
    # Copy example environment file
-   cp .env.example .env
+   cp config/.env.example config/.env
    
    # Edit with your settings
-   nano .env
+   nano config/.env
    ```
 
 ---
@@ -71,7 +71,7 @@ Before contributing, ensure you have:
 
 ### Environment Configuration
 
-Create a `.env` file in the project root:
+Create a `config/.env` file:
 
 ```env
 # Development Configuration
@@ -447,7 +447,7 @@ Follow the established documentation structure:
 ```
 docs/
 ├── 01-overview/        # Project context
-├── 02-system-design/   # Technical architecture
+├── 02-architecture/   # Technical architecture
 ├── 03-getting-started/ # User onboarding
 ├── 04-usage/          # Practical examples
 ├── 05-development/    # Developer guides

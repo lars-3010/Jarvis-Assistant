@@ -4,7 +4,7 @@ Execute design-agent to create `.kiro/specs/$ARGUMENTS/design.md` using design-t
 
 **Agent**: design-agent  
 **Template**: `.claude/templates/design-template.md`
-**Guidelines**: `.claude/guidelines/architectural-guidelines.md`
+**Guidelines**: `ai-docs/guidelines/architectural-guidelines.md`
 **Output**: System architecture with technical decisions and rationale
 **Focus**: Python stack, modular architecture, SOLID principles
 

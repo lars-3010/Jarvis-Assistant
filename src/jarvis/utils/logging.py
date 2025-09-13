@@ -9,16 +9,16 @@ import logging
 import logging.config
 import sys
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any
 
-import pythonjsonlogger.jsonlogger
+from pythonjsonlogger.json import JsonFormatter
 
 
 def setup_logging(
-    name: Optional[str] = None,
-    level: Optional[str] = None,
+    name: str | None = None,
+    level: str | None = None,
     structured: bool = False,
-    log_file: Optional[Path] = None
+    log_file: Path | None = None
 ) -> logging.Logger:
     """Setup logging configuration.
     
@@ -34,23 +34,23 @@ def setup_logging(
     # Determine logger name
     if name is None:
         name = __name__
-    
+
     # Determine log level
     if level is None:
         level = "INFO"
-    
+
     # Create logger
     logger = logging.getLogger(name)
-    
+
     # Avoid duplicate handlers
     if logger.handlers:
         return logger
-    
+
     logger.setLevel(getattr(logging, level.upper()))
-    
+
     # Create formatter
     if structured:
-        formatter = pythonjsonlogger.jsonlogger.JsonFormatter(
+        formatter = JsonFormatter(
             fmt='%(asctime)s %(name)s %(levelname)s %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S'
         )
@@ -59,26 +59,26 @@ def setup_logging(
             fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S'
         )
-    
+
     # Console handler
     console_handler = logging.StreamHandler(sys.stderr)
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
-    
+
     # File handler if specified
     if log_file:
         log_file.parent.mkdir(parents=True, exist_ok=True)
         file_handler = logging.FileHandler(log_file)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
-    
+
     return logger
 
 
 def configure_root_logging(
     level: str = "INFO",
     structured: bool = False,
-    log_file: Optional[Path] = None
+    log_file: Path | None = None
 ) -> None:
     """Configure root logging for the entire application.
     
@@ -96,7 +96,7 @@ def configure_root_logging(
                 "datefmt": "%Y-%m-%d %H:%M:%S"
             },
             "structured": {
-                "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
+                "()": "pythonjsonlogger.json.JsonFormatter",
                 "format": "%(asctime)s %(name)s %(levelname)s %(message)s",
                 "datefmt": "%Y-%m-%d %H:%M:%S"
             }
@@ -121,7 +121,7 @@ def configure_root_logging(
             }
         }
     }
-    
+
     # Add file handler if specified
     if log_file:
         log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -133,7 +133,7 @@ def configure_root_logging(
         }
         config["root"]["handlers"].append("file")
         config["loggers"]["jarvis"]["handlers"].append("file")
-    
+
     logging.config.dictConfig(config)
 
 
@@ -151,7 +151,7 @@ def get_logger(name: str) -> logging.Logger:
 
 class LoggerMixin:
     """Mixin class to add logging capabilities to any class."""
-    
+
     @property
     def logger(self) -> logging.Logger:
         """Get logger for this class."""

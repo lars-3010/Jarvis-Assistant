@@ -56,7 +56,7 @@ neo4j start
 When implementing graph functionality, update:
 
 1. `src/jarvis/future/config/settings.py` - Database connection settings
-2. `resources/config/.env.backend.example` - Environment variables
+2. `config/.env.example` - Environment variables
 3. `src/jarvis/services/graph/` - Move implementation from future folder
 
 ## Integration with MCP

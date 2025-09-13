@@ -1,0 +1,21 @@
+version: "3.9"
+services:
+  jarvis:
+    build: .
+    image: jarvis-assistant:latest
+    environment:
+      - JARVIS_VAULT_PATH=/vault
+      - JARVIS_DATABASE_PATH=/data/jarvis.duckdb
+      - JARVIS_VECTOR_DB_PATH=/data/jarvis-vector.duckdb
+      - JARVIS_LOG_FILE=/logs/mcp_server.log
+    volumes:
+      - ./resources/sample_vault:/vault:ro
+      - ./temporary/data:/data
+      - ./temporary/logs:/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    command: ["jarvis-mcp-stdio"]
+

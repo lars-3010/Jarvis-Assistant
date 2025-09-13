@@ -229,7 +229,7 @@ For Claude Desktop integration, configure the MCP server in Claude's settings:
 
 ### Development Configuration
 
-For development, create a `.env` file in the project root:
+For development, create a `config/.env` file:
 
 ```env
 # Core Configuration

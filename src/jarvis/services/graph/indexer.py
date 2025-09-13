@@ -6,12 +6,11 @@ including text extraction, relationship parsing, and storage.
 """
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from jarvis.services.graph.database import GraphDatabase
 from jarvis.services.graph.parser import MarkdownParser
 from jarvis.services.vault.reader import VaultReader
-from jarvis.utils.errors import JarvisError, ServiceError, ConfigurationError
+from jarvis.utils.errors import ConfigurationError, ServiceError
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +20,7 @@ class GraphIndexer:
     def __init__(
         self,
         database: GraphDatabase,
-        vaults: Dict[str, Path],
+        vaults: dict[str, Path],
     ):
         """
         Initialize the indexer.
@@ -34,7 +33,7 @@ class GraphIndexer:
         self.vaults = vaults
         self.vault_readers = {name: VaultReader(str(path)) for name, path in vaults.items()}
 
-    def index_vault(self, vault_name: str, file_patterns: Optional[List[str]] = None):
+    def index_vault(self, vault_name: str, file_patterns: list[str] | None = None):
         """
         Index all files in a vault.
 
@@ -64,7 +63,7 @@ class GraphIndexer:
 
         indexed_count = 0
         failed_count = 0
-        
+
         for i, path in enumerate(files_to_index, 1):
             try:
                 self.index_file(vault_name, path)
@@ -75,7 +74,7 @@ class GraphIndexer:
                 failed_count += 1
                 logger.error(f"Failed to index file {path}: {e}")
                 # Continue processing other files instead of stopping
-                
+
         logger.info(f"Graph indexing completed: {indexed_count} files indexed successfully, {failed_count} failed")
 
     def index_file(self, vault_name: str, path: Path):
@@ -89,10 +88,10 @@ class GraphIndexer:
         try:
             relative_path = str(path.relative_to(self.vaults[vault_name]))
             logger.debug(f"Starting indexing of file: {relative_path}")
-            
+
             content, _ = self.vault_readers[vault_name].read_file(relative_path)
             logger.debug(f"Read content length: {len(content)} characters from {relative_path}")
-            
+
             parser = MarkdownParser(content)
             parsed_data = parser.parse()
             logger.debug(f"Parsed data for {relative_path}: tags={len(parsed_data.get('tags', []))}, links={len(parsed_data.get('links', []))}, relationships={len(parsed_data.get('relationships', {}))}")
@@ -106,7 +105,7 @@ class GraphIndexer:
                 "links": parsed_data.get("links", []),
                 "relationships": parsed_data.get("relationships", {}),
             }
-            
+
             logger.debug(f"Created note_data for {relative_path}: title='{note_data['title']}', name='{note_data['name']}', content_length={len(note_data['content'])}")
 
             result = self.database.create_or_update_note(note_data)

@@ -1,0 +1,22 @@
+views:
+  - type: table
+    name: Mathematics
+    filters:
+      and:
+        - up::.contains(link("Mathematics"))
+  - type: table
+    name: Telecommunications
+    filters:
+      and:
+        - up::.contains(link("Areas/Computer Science/Telecommunications", "Telecommunications"))
+  - type: table
+    name: Natural sciences
+    filters:
+      and:
+        - up::.contains(link("Areas/Natural Science/Natural Sciences", "Natural Sciences"))
+  - type: table
+    name: Computer Science
+    filters:
+      or:
+        - up::.contains(link("Areas/Computer Science/Computer Science", "Computer Science"))
+        - domains.contains("Computer Science")

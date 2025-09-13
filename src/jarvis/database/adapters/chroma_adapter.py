@@ -7,25 +7,23 @@ allowing the system to use ChromaDB as an alternative vector database backend.
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Optional, List, Dict, Any
-import json
 
 import torch
 
 from jarvis.core.interfaces import IVectorDatabase
-from jarvis.utils.logging import setup_logging
 from jarvis.utils.errors import JarvisError, ServiceError
+from jarvis.utils.logging import setup_logging
 
 logger = setup_logging(__name__)
 
 
 class ChromaVectorDatabase(IVectorDatabase):
     """ChromaDB-based vector database for document embeddings."""
-    
-    def __init__(self, collection_name: str = "jarvis-embeddings", 
-                 persist_directory: Optional[str] = None,
-                 host: Optional[str] = None, 
-                 port: Optional[int] = None):
+
+    def __init__(self, collection_name: str = "jarvis-embeddings",
+                 persist_directory: str | None = None,
+                 host: str | None = None,
+                 port: int | None = None):
         """Initialize the ChromaDB vector database.
         
         Args:
@@ -39,33 +37,32 @@ class ChromaVectorDatabase(IVectorDatabase):
             from chromadb.config import Settings
         except ImportError:
             raise ServiceError("ChromaDB is not installed. Install with: pip install chromadb")
-        
+
         self.collection_name = collection_name
         self.persist_directory = persist_directory
         self.host = host
         self.port = port
-        
+
         try:
             if host and port:
                 # Server mode
                 self.client = chromadb.HttpClient(host=host, port=port)
                 logger.info(f"Connected to ChromaDB server at {host}:{port}")
+            # Local mode with persistence
+            elif persist_directory:
+                Path(persist_directory).mkdir(parents=True, exist_ok=True)
+                self.client = chromadb.PersistentClient(path=persist_directory)
+                logger.info(f"Connected to persistent ChromaDB at {persist_directory}")
             else:
-                # Local mode with persistence
-                if persist_directory:
-                    Path(persist_directory).mkdir(parents=True, exist_ok=True)
-                    self.client = chromadb.PersistentClient(path=persist_directory)
-                    logger.info(f"Connected to persistent ChromaDB at {persist_directory}")
-                else:
-                    self.client = chromadb.Client()
-                    logger.info("Connected to in-memory ChromaDB")
-            
+                self.client = chromadb.Client()
+                logger.info("Connected to in-memory ChromaDB")
+
             # Get or create collection
             self.collection = self.client.get_or_create_collection(
                 name=collection_name,
                 metadata={"hnsw:space": "cosine"}  # Use cosine similarity
             )
-            
+
         except Exception as e:
             raise ServiceError(f"Failed to connect to ChromaDB: {e}") from e
 
@@ -99,37 +96,37 @@ class ChromaVectorDatabase(IVectorDatabase):
             logger.error(f"Failed to count notes: {e}")
             raise JarvisError(f"Failed to count notes: {e}") from e
 
-    def get_most_recent_seen_timestamp(self, vault_name: str) -> Optional[float]:
+    def get_most_recent_seen_timestamp(self, vault_name: str) -> float | None:
         """Get the most recent seen timestamp for a vault."""
         try:
             # Query all documents for this vault
             results = self.collection.get(
                 where={"vault_name": vault_name}
             )
-            
+
             if not results['metadatas']:
                 return None
-            
+
             # Find the most recent timestamp
             timestamps = [
-                metadata.get('last_modified', 0) 
+                metadata.get('last_modified', 0)
                 for metadata in results['metadatas']
                 if metadata.get('last_modified')
             ]
-            
+
             return max(timestamps) if timestamps else None
-            
+
         except Exception as e:
             logger.error(f"Failed to get recent timestamp for vault {vault_name}: {e}")
             raise JarvisError(f"Failed to get recent timestamp for vault {vault_name}: {e}") from e
 
     def store_note(
-        self, 
-        path: Path, 
-        vault_name: str, 
-        last_modified: float, 
-        embedding: List[float],
-        checksum: Optional[str] = None
+        self,
+        path: Path,
+        vault_name: str,
+        last_modified: float,
+        embedding: list[float],
+        checksum: str | None = None
     ) -> bool:
         """Store a note in the database.
         
@@ -144,18 +141,18 @@ class ChromaVectorDatabase(IVectorDatabase):
             True if successful, False otherwise
         """
         try:
-            document_id = f"{vault_name}::{str(path)}"
-            
+            document_id = f"{vault_name}::{path!s}"
+
             # Check if document already exists
             existing = self.collection.get(ids=[document_id])
-            
+
             metadata = {
                 "vault_name": vault_name,
                 "path": str(path),
                 "last_modified": last_modified,
                 "checksum": checksum
             }
-            
+
             if existing['ids']:
                 # Update existing document
                 self.collection.update(
@@ -170,19 +167,19 @@ class ChromaVectorDatabase(IVectorDatabase):
                     embeddings=[embedding],
                     metadatas=[metadata]
                 )
-            
+
             logger.debug(f"Stored note: {vault_name}/{path}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to store note {vault_name}/{path}: {e}")
             raise JarvisError(f"Failed to store note {vault_name}/{path}: {e}") from e
 
     def search(
-        self, 
-        query_embedding: torch.Tensor, 
+        self,
+        query_embedding: torch.Tensor,
         top_k: int = 10,
-        vault_name: Optional[str] = None
+        vault_name: str | None = None
     ) -> Sequence[tuple[str, Path, float]]:
         """Search for notes similar to a query embedding.
         
@@ -199,43 +196,43 @@ class ChromaVectorDatabase(IVectorDatabase):
             where_filter = None
             if vault_name:
                 where_filter = {"vault_name": vault_name}
-            
+
             # Perform similarity search
             results = self.collection.query(
                 query_embeddings=[query_embedding.tolist()],
                 n_results=top_k,
                 where=where_filter
             )
-            
+
             # Format results
             search_results = []
             if results['metadatas'] and results['distances']:
-                for metadata, distance in zip(results['metadatas'][0], results['distances'][0]):
+                for metadata, distance in zip(results['metadatas'][0], results['distances'][0], strict=False):
                     vault = metadata['vault_name']
                     path = Path(metadata['path'])
                     # Convert distance to similarity score (ChromaDB returns distances)
                     similarity = 1.0 - distance
                     search_results.append((vault, path, similarity))
-            
+
             return search_results
-            
+
         except Exception as e:
             logger.error(f"Search failed: {e}")
             raise JarvisError(f"Search failed: {e}") from e
 
-    def get_note_by_path(self, vault_name: str, path: Path) -> Optional[dict]:
+    def get_note_by_path(self, vault_name: str, path: Path) -> dict | None:
         """Get a specific note by vault name and path."""
         try:
-            document_id = f"{vault_name}::{str(path)}"
+            document_id = f"{vault_name}::{path!s}"
             results = self.collection.get(
                 ids=[document_id],
                 include=['metadatas', 'embeddings']
             )
-            
+
             if results['ids']:
                 metadata = results['metadatas'][0]
                 embedding = results['embeddings'][0] if results['embeddings'] else None
-                
+
                 return {
                     'path': metadata['path'],
                     'vault_name': metadata['vault_name'],
@@ -243,9 +240,9 @@ class ChromaVectorDatabase(IVectorDatabase):
                     'embedding': embedding,
                     'checksum': metadata.get('checksum')
                 }
-            
+
             return None
-            
+
         except Exception as e:
             logger.error(f"Failed to get note {vault_name}/{path}: {e}")
             raise JarvisError(f"Failed to get note {vault_name}/{path}: {e}") from e
@@ -253,11 +250,11 @@ class ChromaVectorDatabase(IVectorDatabase):
     def delete_note(self, vault_name: str, path: Path) -> bool:
         """Delete a note from the database."""
         try:
-            document_id = f"{vault_name}::{str(path)}"
+            document_id = f"{vault_name}::{path!s}"
             self.collection.delete(ids=[document_id])
             logger.debug(f"Deleted note: {vault_name}/{path}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to delete note {vault_name}/{path}: {e}")
             raise JarvisError(f"Failed to delete note {vault_name}/{path}: {e}") from e
@@ -270,7 +267,7 @@ class ChromaVectorDatabase(IVectorDatabase):
                 where={"vault_name": vault_name},
                 include=['metadatas']
             )
-            
+
             if not results['metadatas']:
                 return {
                     'vault_name': vault_name,
@@ -278,21 +275,21 @@ class ChromaVectorDatabase(IVectorDatabase):
                     'latest_modified': None,
                     'earliest_modified': None
                 }
-            
+
             # Calculate statistics
             timestamps = [
-                metadata.get('last_modified', 0) 
+                metadata.get('last_modified', 0)
                 for metadata in results['metadatas']
                 if metadata.get('last_modified')
             ]
-            
+
             return {
                 'vault_name': vault_name,
                 'note_count': len(results['ids']),
                 'latest_modified': max(timestamps) if timestamps else None,
                 'earliest_modified': min(timestamps) if timestamps else None
             }
-            
+
         except Exception as e:
             logger.error(f"Failed to get vault stats for {vault_name}: {e}")
             raise JarvisError(f"Failed to get vault stats for {vault_name}: {e}") from e

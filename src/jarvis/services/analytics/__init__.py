@@ -1,38 +1,39 @@
-"""
-Analytics service for vault analysis and insights.
+"""Analytics import shim.
 
-This module provides comprehensive analytical capabilities for vault structure,
-content quality, and knowledge organization patterns.
+This package re-exports analytics features from ``jarvis.features.analytics``
+to maintain backwards compatibility with existing imports.
 """
 
-from .models import (
-    VaultContext,
-    QualityScore,
-    KnowledgeDomain,
-    OrganizationPattern,
-    FolderHierarchy,
-    DepthMetrics,
-    QualityTrend,
-    DomainConnection,
+from jarvis.features.analytics import (
     ActionableRecommendation,
-    QualityGap,
+    AnalyticsError,
     BridgeOpportunity,
     CacheStatus,
-    AnalyticsError,
+    DepthMetrics,
+    DomainConnection,
+    FolderHierarchy,
+    KnowledgeDomain,
+    OrganizationPattern,
+    QualityGap,
+    QualityScore,
+    QualityTrend,
+    VaultContext,
+    VaultAnalyticsService,
 )
 
 __all__ = [
-    "VaultContext",
-    "QualityScore", 
-    "KnowledgeDomain",
-    "OrganizationPattern",
-    "FolderHierarchy",
-    "DepthMetrics",
-    "QualityTrend",
-    "DomainConnection",
     "ActionableRecommendation",
-    "QualityGap",
+    "AnalyticsError",
     "BridgeOpportunity",
     "CacheStatus",
-    "AnalyticsError",
+    "DepthMetrics",
+    "DomainConnection",
+    "FolderHierarchy",
+    "KnowledgeDomain",
+    "OrganizationPattern",
+    "QualityGap",
+    "QualityScore",
+    "QualityTrend",
+    "VaultContext",
+    "VaultAnalyticsService",
 ]

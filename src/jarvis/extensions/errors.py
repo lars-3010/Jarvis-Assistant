@@ -4,13 +4,12 @@ Extension-specific error classes for Jarvis Assistant.
 This module defines custom exceptions for extension system operations.
 """
 
-from typing import Optional
 
 
 class ExtensionError(Exception):
     """Base exception for extension-related errors."""
-    
-    def __init__(self, message: str, extension_name: Optional[str] = None, cause: Optional[Exception] = None):
+
+    def __init__(self, message: str, extension_name: str | None = None, cause: Exception | None = None):
         super().__init__(message)
         self.extension_name = extension_name
         self.cause = cause
@@ -38,8 +37,8 @@ class ExtensionDependencyError(ExtensionError):
 
 class ExtensionToolError(ExtensionError):
     """Exception raised when an extension tool fails to execute."""
-    
-    def __init__(self, message: str, tool_name: str, extension_name: Optional[str] = None, cause: Optional[Exception] = None):
+
+    def __init__(self, message: str, tool_name: str, extension_name: str | None = None, cause: Exception | None = None):
         super().__init__(message, extension_name, cause)
         self.tool_name = tool_name
 

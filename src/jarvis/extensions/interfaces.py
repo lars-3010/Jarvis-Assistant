@@ -6,11 +6,13 @@ enabling modular functionality that can be loaded dynamically.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
 from enum import Enum
-from pydantic import BaseModel
-import mcp.types as types
+from typing import Any
+
+from pydantic import BaseModel, Field, ConfigDict
+
 from jarvis.core.container import ServiceContainer
+from mcp import types
 
 
 class ExtensionStatus(str, Enum):
@@ -26,13 +28,13 @@ class ExtensionHealth(BaseModel):
     """Extension health status model."""
     status: ExtensionStatus
     message: str = ""
-    error_details: Optional[str] = None
-    last_check: Optional[float] = None
+    error_details: str | None = None
+    last_check: float | None = None
     dependencies_healthy: bool = True
-    resource_usage: Dict[str, Any] = {}
-    
-    class Config:
-        use_enum_values = True
+    resource_usage: dict[str, Any] = Field(default_factory=dict)
+
+    # Pydantic v2 configuration
+    model_config = ConfigDict(use_enum_values=True)
 
 
 class ExtensionMetadata(BaseModel):
@@ -41,22 +43,22 @@ class ExtensionMetadata(BaseModel):
     version: str
     description: str = ""
     author: str = ""
-    dependencies: List[str] = []
-    required_services: List[str] = []
-    optional_services: List[str] = []
-    configuration_schema: Dict[str, Any] = {}
-    
-    class Config:
-        extra = "allow"
+    dependencies: list[str] = Field(default_factory=list)
+    required_services: list[str] = Field(default_factory=list)
+    optional_services: list[str] = Field(default_factory=list)
+    configuration_schema: dict[str, Any] = Field(default_factory=dict)
+
+    # Pydantic v2 configuration
+    model_config = ConfigDict(extra="allow")
 
 
 class MCPTool(BaseModel):
     """MCP tool definition for extensions."""
     name: str
     description: str
-    input_schema: Dict[str, Any]
+    input_schema: dict[str, Any]
     handler: Any  # Callable that handles the tool execution
-    
+
     def to_mcp_tool(self) -> types.Tool:
         """Convert to MCP types.Tool."""
         return types.Tool(
@@ -68,7 +70,7 @@ class MCPTool(BaseModel):
 
 class IExtension(ABC):
     """Abstract base class for all Jarvis extensions."""
-    
+
     @abstractmethod
     def get_metadata(self) -> ExtensionMetadata:
         """Return extension metadata.
@@ -77,7 +79,7 @@ class IExtension(ABC):
             ExtensionMetadata with extension information
         """
         pass
-    
+
     @abstractmethod
     async def initialize(self, container: ServiceContainer) -> None:
         """Initialize the extension with access to core services.
@@ -89,7 +91,7 @@ class IExtension(ABC):
             ExtensionError: If initialization fails
         """
         pass
-    
+
     @abstractmethod
     async def shutdown(self) -> None:
         """Clean shutdown of extension resources.
@@ -98,16 +100,16 @@ class IExtension(ABC):
         and prepare the extension for removal.
         """
         pass
-    
+
     @abstractmethod
-    def get_tools(self) -> List[MCPTool]:
+    def get_tools(self) -> list[MCPTool]:
         """Return MCP tools provided by this extension.
         
         Returns:
             List of MCPTool instances
         """
         pass
-    
+
     @abstractmethod
     def get_health_status(self) -> ExtensionHealth:
         """Return current health status of the extension.
@@ -116,9 +118,9 @@ class IExtension(ABC):
             ExtensionHealth with current status
         """
         pass
-    
+
     @abstractmethod
-    async def handle_tool_call(self, tool_name: str, arguments: Dict[str, Any]) -> List[types.TextContent]:
+    async def handle_tool_call(self, tool_name: str, arguments: dict[str, Any]) -> list[types.TextContent]:
         """Handle a tool call from the MCP server.
         
         Args:
@@ -132,16 +134,16 @@ class IExtension(ABC):
             ExtensionError: If tool execution fails
         """
         pass
-    
-    def get_configuration_schema(self) -> Dict[str, Any]:
+
+    def get_configuration_schema(self) -> dict[str, Any]:
         """Return configuration schema for this extension.
         
         Returns:
             JSON schema for extension configuration
         """
         return {}
-    
-    def validate_configuration(self, config: Dict[str, Any]) -> bool:
+
+    def validate_configuration(self, config: dict[str, Any]) -> bool:
         """Validate extension configuration.
         
         Args:
@@ -155,7 +157,7 @@ class IExtension(ABC):
 
 class IExtensionManager(ABC):
     """Abstract interface for extension management."""
-    
+
     @abstractmethod
     async def load_extension(self, extension_name: str) -> IExtension:
         """Load an extension by name.
@@ -170,7 +172,7 @@ class IExtensionManager(ABC):
             ExtensionError: If loading fails
         """
         pass
-    
+
     @abstractmethod
     async def unload_extension(self, extension_name: str) -> None:
         """Unload an extension.
@@ -179,27 +181,27 @@ class IExtensionManager(ABC):
             extension_name: Name of the extension to unload
         """
         pass
-    
+
     @abstractmethod
-    def list_available_extensions(self) -> List[str]:
+    def list_available_extensions(self) -> list[str]:
         """List all available extensions.
         
         Returns:
             List of extension names
         """
         pass
-    
+
     @abstractmethod
-    def list_loaded_extensions(self) -> List[str]:
+    def list_loaded_extensions(self) -> list[str]:
         """List currently loaded extensions.
         
         Returns:
             List of loaded extension names
         """
         pass
-    
+
     @abstractmethod
-    def get_extension(self, extension_name: str) -> Optional[IExtension]:
+    def get_extension(self, extension_name: str) -> IExtension | None:
         """Get a loaded extension by name.
         
         Args:
@@ -209,16 +211,16 @@ class IExtensionManager(ABC):
             Extension instance or None if not loaded
         """
         pass
-    
+
     @abstractmethod
-    def get_all_tools(self) -> List[MCPTool]:
+    def get_all_tools(self) -> list[MCPTool]:
         """Get all tools from loaded extensions.
         
         Returns:
             List of all MCP tools
         """
         pass
-    
+
     @abstractmethod
     async def reload_extension(self, extension_name: str) -> IExtension:
         """Reload an extension.

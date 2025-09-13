@@ -5,7 +5,8 @@
 jarvis-assistant/
 ├── src/jarvis/              # Main application code
 ├── docs/                    # Comprehensive documentation
-├── resources/               # Configuration, scripts, and tests
+├── resources/               # Scripts, debug tools, tests, datasets
+├── config/                  # Environment and YAML configuration
 ├── data/                    # Runtime databases (DuckDB files)
 ├── .kiro/                   # Kiro steering rules
 ├── pyproject.toml           # Project configuration and dependencies
@@ -39,7 +40,7 @@ src/jarvis/
 
 ## Documentation Structure (`docs/`)
 - **01-overview/**: Project overview and key concepts
-- **02-system-design/**: Architecture and technical design
+- **02-architecture/**: Architecture and technical design
 - **03-getting-started/**: Installation and setup guides
 - **04-usage/**: API examples and workflows
 - **05-development/**: Developer guides and standards
@@ -50,16 +51,13 @@ src/jarvis/
 ## Resources Directory (`resources/`)
 ```
 resources/
-├── config/                 # Configuration templates
-│   ├── .env.example        # Environment variables
-│   └── .env.backend.example
-├── tests/                  # Test suite
-│   ├── unit/              # Unit tests (mirror src structure)
-│   ├── integration/       # Integration tests
-│   └── mcp/               # MCP-specific tests
-├── scripts/               # Utility scripts
 ├── debug/                 # Debugging tools and helpers
-└── data-generation/       # Test data generation
+├── scripts/               # Utility scripts
+├── data-generation/       # Test data generation
+└── tests/                 # Test suite
+    ├── unit/              # Unit tests (mirror src structure)
+    ├── integration/       # Integration tests
+    └── mcp/               # MCP-specific tests
 ```
 
 ## Key Architectural Patterns
@@ -84,7 +82,17 @@ resources/
 ### Configuration Management
 - **Environment Variables**: `JARVIS_*` prefix
 - **Settings Classes**: Pydantic-based with validation
-- **Config Files**: `.env` files for local development
+- **Config Files**: `config/.env` and YAML (`config/base.yaml`, `config/local.yaml`)
+
+## Config Directory (`config/`)
+```
+config/
+├── .env.example          # Canonical environment template
+├── .env                  # Local overrides (gitignored)
+├── base.yaml             # Base YAML configuration
+├── local.yaml            # Local overrides
+└── neo4j/                # Neo4j schema/configuration
+```
 
 ### Error Handling
 - **Custom Exceptions**: Hierarchical exception classes in `utils/exceptions.py`
